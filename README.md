@@ -1,182 +1,189 @@
 # riken-odtc-connector
 
-理研 BDR の Tecan Fluent 780 に組み込まれた装置を、SiLA 2 で操作するコネクタ。[UniteLabs CDK](https://docs.unitelabs.io/connector-development/) で作り、FluentControl を経由して動かす。
+A SiLA 2 connector for the devices built into the Tecan Fluent 780 at RIKEN BDR. Built with the [UniteLabs CDK](https://docs.unitelabs.io/connector-development/); it drives the devices through FluentControl.
 
-## まず使うもの: 1 つにまとめたサーバ「Tecan Fluent 780」（2026-10-15〜）
+## Start here: the combined server "Tecan Fluent 780" (since 2026-10-15)
 
 ```bash
-cp config.fluent780.example.json config.fluent780.json   # 実機で動かすときは fluent.dry_run を false に
+cp config.fluent780.example.json config.fluent780.json   # set fluent.dry_run to false to drive the real instrument
 uv run connector start --app riken_odtc_connector.fluent780:create_app -cfg config.fluent780.json
 ```
 
-ODTC と Infinite 200 PRO の Feature（下の各節）を 1 つのサーバ（ポート 50060）に並べ、FluentControl に命令を送る裏側を 1 つだけにしたもの。
-**同時に 1 つの操作だけ**を守るので、別の装置の操作は「別の操作が実行中です（…）」で断られる。
-`StatusController.CurrentOperation` で、今何をしているかが分かる。
+This puts the ODTC and Infinite 200 PRO Features (sections below) on a single server (port 50060), with a single back end that sends commands to FluentControl.
+It enforces **one operation at a time**, so an operation on another device is rejected with "Another operation is running (...)".
+`StatusController.CurrentOperation` shows what is currently running.
 
-装置ごとのサーバ（ODTC 用 50061、Infinite 用 50063）も残してあるが、**このサーバと同時に動かさないこと**（互いの操作を知らず、
-UniteLabs コネクタの「最後に開いた窓口」を通して他人のランを終わらせてしまうおそれがある）。
+The per-device servers (ODTC on 50061, Infinite on 50063) are still available, but **do not run them at the same time as this server**
+(they do not know about each other's operations and could end someone else's run through the UniteLabs connector's "last opened channel").
 
-これから足す装置の Feature には、装置名を頭に付ける（例 `BioShakeController`）。ODTC の `TemperatureController` は名前を変えずに残している。
+Features for newly added devices are prefixed with the device name (e.g. `BioShakeController`). The ODTC's `TemperatureController` keeps its original name.
 
-### RGA（`RgaController`、このサーバだけ）
+### RGA (`RgaController`, this server only)
 
-| Command / Property | 中身 |
+| Command / Property | Description |
 |---|---|
-| `LabwarePositions`（P） | 運んでよいラボウェアと、コネクタが覚えている今の位置 |
-| `MoveLabware(Labware, Location, Site)` | 指定の位置へ運ぶ（例 `Regrip_Pos`, 1 = リーダに入れる前の持ち替え位置） |
-| `ReturnLabware(Labware)` | 元の位置（ワークテーブルの初期位置）へ戻す |
-| `RecordLabwarePosition(Labware, Location, Site)` | 手で動かしたときに今の位置を教える（装置は動かない） |
+| `LabwarePositions` (P) | Labware that may be moved, and the current position the connector remembers for each |
+| `MoveLabware(Labware, Location, Site)` | Move to the given position (e.g. `Regrip_Pos`, 1 = the regrip position before loading into the reader) |
+| `ReturnLabware(Labware)` | Return to the home position (the initial worktable position) |
+| `RecordLabwarePosition(Labware, Location, Site)` | Tell the connector the current position after moving labware by hand (the instrument does not move) |
 
-- FluentControl はランのたびにラボウェアの位置を初期位置に戻して覚え直すので、コネクタが今の位置を覚え
-  （`~/.riken_fluent780/labware_positions.json`）、次のランの最初に `RemoveLabware` → `AddLabware` で記憶を合わせてから運ぶ。
-- 運んでよいのは設定 `plates.labware` に名前・型・元の位置を書いたものだけ（既定は `96 Well Flat_Custom[001]`、元の位置 `Nest7mm_Pos[6]`）。
-- **2026-10-15 に UniteLabs App から実機で確認**: `Nest7mm_Pos[6]` → `Regrip_Pos[1]` → 別のランで `Nest7mm_Pos[6]` へ戻す。
-- UniteLabs App で文字列の値を入れるときは、引用符を付けない（付けると引用符まで値になる）。
+- FluentControl resets labware to its initial position at the start of every run, so the connector remembers the current position
+  (`~/.riken_fluent780/labware_positions.json`) and, at the start of the next run, syncs FluentControl with `RemoveLabware` → `AddLabware` before moving.
+- Only labware listed in the `plates.labware` setting (name, type, home position) may be moved (default `96 Well Flat_Custom[001]`, home position `Nest7mm_Pos[6]`).
+- **Verified on the instrument from the UniteLabs App on 2026-10-15**: `Nest7mm_Pos[6]` → `Regrip_Pos[1]` → back to `Nest7mm_Pos[6]` in a separate run.
+- When entering string values in the UniteLabs App, do not add quotes (the quotes become part of the value).
 
-### 温度制御つきの装置（このサーバだけ）
+### Temperature-controlled and shaking devices (this server only)
 
-| Feature | Command | 範囲（コネクタが絞ったもの） |
+| Feature | Command | Range (as restricted by the connector) |
 |---|---|---|
-| `BioShakeController` | `SetTemperature(Temperature)` / `TemperatureOff` | 4〜70 °C |
-| `ShakingIncubatorController`（Inheco Incubator Shaker DWP） | `SetTemperature(Temperature)` | 20〜60 °C |
-| `TemperaturePositionController`（CPLC の 3 か所、inhecoMTC） | `SetTemperature(Slot, Temperature)` / `TurnOff(Slot)` | 4〜70 °C、スロット 1〜3 |
-| `Incubator1Controller`（6 Nest Incubator Shaking） | `SetTemperature(Temperature)`（全部の位置） | 20〜50 °C |
+| `BioShakeController` | `SetTemperature(Temperature)` / `TemperatureOff` | 4–70 °C |
+| | `LockPlate` / `UnlockPlate` | |
+| | `ShakeOn(Speed)` / `ShakeOff` | 1000, 1200, 1400, 1600, 1800 or 2000 rpm |
+| `ShakingIncubatorController` (Inheco Incubator Shaker DWP) | `SetTemperature(Temperature)` | 20–60 °C |
+| | `Close` | |
+| | `ShakeOn` / `ShakeOff` | fixed preset `14,1.0,14,1.0,180` |
+| `TemperaturePositionController` (the 3 CPLC positions, inhecoMTC) | `SetTemperature(Slot, Temperature)` / `TurnOff(Slot)` | 4–70 °C, slots 1–3 |
+| `Incubator1Controller` (6 Nest Incubator Shaking) | `SetTemperature(Temperature)` (all positions) | 20–50 °C |
+| | `CloseDoor` | |
+| | `StartShaker(Frequency)` / `StopShaker` | 1.0–8.5 Hz |
 
-- 命令を送った時点で返る（温度に達するまで待たない）。2026-10-15 に実機で 1 つ約 9 秒、ドライバの記録は SC_ERROR_NONE。
-- 引数の意味の根拠と、意味の分からない値（GUI スクリプトと同じ値に固定）は `temperature_devices.py` の先頭に書いた。
-- Tecan の片付け（Sub_Cleanup）は、Inheco のインキュベータと Incubator1 を 25 °C に戻し、BioShake は TempOff、CPLC は切る。
+- Commands return as soon as they are sent (they do not wait for the temperature to be reached). On 2026-10-15 each took about 9 s on the instrument, and the driver logged SC_ERROR_NONE.
+- BioShake lock/unlock/shake, Inheco close/shake and Incubator1 door/shaker (5 Hz) were verified on the instrument on 2026-10-15 (no plate loaded; each shake ran for about 5 s).
+- The basis for each argument's meaning, and the values whose meaning is unknown (fixed to the same values as the GUI scripts), are documented at the top of `temperature_devices.py`.
+- Tecan's cleanup (Sub_Cleanup) returns the Inheco incubator and Incubator1 to 25 °C, sends TempOff to the BioShake, and turns the CPLC off.
 
-GUI スクリプトから取り出した装置のマクロの雛形（83 個）は `tests/fixtures/gui_macros/`（出どころは `index.tsv`、取り出しは `tools/extract_gui_macros.py`）。
+Device macro templates extracted from the GUI scripts (83 of them) are in `tests/fixtures/gui_macros/` (sources in `index.tsv`; extracted with `tools/extract_gui_macros.py`).
 
 ---
 
 ## ODTC
 
 ```
-SiLA 2 クライアント（UniteLabs App、Python など）
+SiLA 2 client (UniteLabs App, Python, etc.)
    │  jp.riken.bdr/odtc/*
    ▼
-このコネクタ（Mac 10.5.1.213:50061 で常駐、mDNS で公開）
-   │  SiLA 2：PrepareMethod / RunMethod / ExecuteCommand(XML)
+This connector (resident on the Mac at 10.5.1.213:50061, advertised via mDNS)
+   │  SiLA 2: PrepareMethod / RunMethod / ExecuteCommand(XML)
    ▼
-UniteLabs の FluentControl コネクタ（Fluent PC、Session 1）
+UniteLabs FluentControl connector (Fluent PC, Session 1)
    │  VisionX COM API
    ▼
-FluentControl（メソッド OFML_ApiHost）→ SiLA-ODTC ドライバ → ODTC
+FluentControl (method OFML_ApiHost) → SiLA-ODTC driver → ODTC
 ```
 
-1 つの操作ごとに FluentControl のラン（`OFML_ApiHost`）を 1 本開始し、ODTC のマクロを 1 つ送って終わらせる。
-同時に動かせる ODTC の操作は 1 つだけ。
+Each operation starts one FluentControl run (`OFML_ApiHost`), sends one ODTC macro, and ends the run.
+Only one ODTC operation can run at a time.
 
-## Feature と Command
+## Features and Commands
 
-| Feature | Command / Property | 中身 | 実機での確認（2026-10-15） |
+| Feature | Command / Property | Description | Verified on the instrument (2026-10-15) |
 |---|---|---|---|
-| `DoorController` | `OpenDoor` / `CloseDoor` | 扉（引き出し）の開閉 | 扉の動作 9〜10 秒、全体 18〜48 秒 |
-| `MethodController` | `Methods`（P） | 装置に登録された PreMethod 5 本・Method 7 本の一覧と所要時間の見積り | 2026-08-10 の控えを読む |
-| | `RunPreMethod(PreMethod)` | 予備加熱。目標温度によらず 7 分 45 秒 | `ini25` 466.3 秒、467.5 秒 |
-| | `RunMethod(Method)` | 温度プログラム。直前に対応する PreMethod が要る | `test` 16.0 秒 |
-| | `LastPreMethod`（P） | このコネクタが最後に済ませた PreMethod | |
-| `TemperatureController` | `ReadTemperatures` | ブロック・蓋などの温度（°C） | 約 12 秒 |
-| `StatusController` | `Ready` / `Busy` / `CurrentOperation` / `FluentControlState` / `ActiveDialogs`（P） | 今すぐ命令を受けられるか、今何をしているか | |
+| `DoorController` | `OpenDoor` / `CloseDoor` | Open/close the door (drawer) | door motion 9–10 s, total 18–48 s |
+| `MethodController` | `Methods` (P) | The 5 PreMethods and 7 Methods registered on the device, with estimated durations | reads the copy taken on 2026-08-10 |
+| | `RunPreMethod(PreMethod)` | Preheat. 7 min 45 s regardless of target temperature | `ini25` 466.3 s, 467.5 s |
+| | `RunMethod(Method)` | Temperature program. Requires the matching PreMethod immediately before | `test` 16.0 s |
+| | `LastPreMethod` (P) | The last PreMethod this connector completed | |
+| `TemperatureController` | `ReadTemperatures` | Block, lid and other temperatures (°C) | about 12 s |
+| `StatusController` | `Ready` / `Busy` / `CurrentOperation` / `FluentControlState` / `ActiveDialogs` (P) | Whether a command can be accepted right now, and what is running | |
 
-（P）は Property。それ以外は Observable Command で、進捗と残り時間を 2 秒ごとに返す。
+(P) marks a Property. All others are Observable Commands that report progress and remaining time every 2 seconds.
 
-### 守っていること
+### Safeguards
 
-- **送るマクロは、実機で通した実績のあるものだけ**（`OpenDoor`、`CloseDoor`、`ExecuteMethod`、`ReadActualTemperature`）。
-  `SetParameters` は ODTC を落とす（装置側の不具合で確定）、`StopMethod` は FluentControl に拒否されるので送れない。
-- **送る XML は、実機で成功したときのファイルと 1 文字も違わない**ことをテストで確かめている（`tests/fixtures/`）。
-- **Method は、開始ブロック温度が一致する PreMethod を直前に済ませたときだけ受け付ける**。PreMethod は Method ごとに 1 回で使い切り。
-  対応: `ini4`–HeatShock、`ini25`–test、`ini37`–EnzymeReaction、`ini42`–For * insert、`ini95`–PCR。
-- FluentControl が空いていない（他のラン中、ダイアログ待ち）ときは、何もせずに断る。
+- **Only macros that have succeeded on the instrument are sent** (`OpenDoor`, `CloseDoor`, `ExecuteMethod`, `ReadActualTemperature`).
+  `SetParameters` crashes the ODTC (confirmed as a device-side bug), and `StopMethod` is rejected by FluentControl, so neither can be sent.
+- **Tests check that the XML sent is identical, character for character, to the files that succeeded on the instrument** (`tests/fixtures/`).
+- **A Method is accepted only if a PreMethod with the matching start block temperature was completed immediately before.** Each PreMethod is consumed by one Method.
+  Pairs: `ini4`–HeatShock, `ini25`–test, `ini37`–EnzymeReaction, `ini42`–For * insert, `ini95`–PCR.
+- If FluentControl is not idle (another run in progress, waiting on a dialog), the request is rejected without doing anything.
 
-### 分かっている制約
+### Known limitations
 
-- メソッドの一覧は 2026-08-10 に装置から写した控え。それ以降に装置へ足したメソッドは出ない。
-- `LastPreMethod` はコネクタを再起動すると消える。FluentControl の GUI から流した PreMethod も知らない。
-- 温度は、FluentControl が値を API に返さないので、**Fluent PC のドライバのログから SSH で読む**
-  （`windows/odtc_last_sensor_values.ps1` を `C:\Users\Tecan\OFML_screen\` に置く）。コネクタを動かす PC から
-  `ssh Tecan@10.5.1.156` が鍵認証で通ること。ODTC の時計は現地時刻なのに末尾が `Z` になっている。
-- PCR などの Method の実行中は、温度も扉も操作できない（FluentControl のランは 1 本だけ）。
-- **認証も暗号化もない。** 研究室のネットワークにいる人は誰でも扉を開け閉めできる。
+- The method list is a copy taken from the device on 2026-08-10. Methods added to the device after that do not appear.
+- `LastPreMethod` is lost when the connector restarts. It also does not know about PreMethods run from the FluentControl GUI.
+- FluentControl does not return temperature values through the API, so **they are read over SSH from the driver log on the Fluent PC**
+  (place `windows/odtc_last_sensor_values.ps1` in `C:\Users\Tecan\OFML_screen\`). The PC running the connector must be able to
+  `ssh Tecan@10.5.1.156` with key authentication. The ODTC clock is in local time, but timestamps end in `Z`.
+- While a Method such as PCR is running, neither temperatures nor the door can be operated (FluentControl runs only one run at a time).
+- **There is no authentication or encryption.** Anyone on the lab network can open and close the door.
 
-## 起動
+## Running
 
 ```bash
 uv sync
-cp config.example.json config.json   # 必要なら hostname などを直す
+cp config.example.json config.json   # adjust hostname etc. if needed
 uv run connector start --app riken_odtc_connector:create_app -cfg config.json
 ```
 
-- `fluent.dry_run: true` にすると、XML を組み立ててログに出すだけで Fluent には何も送らない。`dry_run_seconds` で送ったふりの待ち時間を足せる。
-- `sila_server.hostname` は **LAN の住所（例 `10.5.1.213`）にする**。`0.0.0.0` にすると mDNS が `127.0.0.1` も知らせ、
-  Fluent PC の UniteLabs App が自分自身につなぎに行ってしまう。mDNS で公開しないなら `discovery` を `null` にする。
-- UniteLabs App に Command を足したあとは、App 側で Feature を読み直させる
-  （`PATCH http://10.5.1.156:3004/api/servers/<UUID>/features/update`、またはページの再読み込み）。
+- With `fluent.dry_run: true`, the XML is built and logged but nothing is sent to the Fluent. `dry_run_seconds` adds a simulated wait.
+- **Set `sila_server.hostname` to the LAN address (e.g. `10.5.1.213`).** With `0.0.0.0`, mDNS also advertises `127.0.0.1`,
+  and the UniteLabs App on the Fluent PC ends up connecting to itself. If you do not want mDNS advertisement, set `discovery` to `null`.
+- After adding Commands, make the UniteLabs App reload the Features
+  (`PATCH http://10.5.1.156:3004/api/servers/<UUID>/features/update`, or reload the page).
 
-## 裏側（UniteLabs の FluentControl コネクタ）の癖
+## Quirks of the back end (UniteLabs FluentControl connector)
 
-- **FluentControl を再起動したら、UniteLabs のコネクタに `FluentController.GetRuntime` を送る。** 送らないと古い FluentControl を見たまま。
-- FluentControl は起動時に「研究用のみ」のダイアログ（`VX_APPFR_019_001`）で止まる。`RuntimeController.RespondToDialog(id, "OK")` で閉じられる。
-- ランが終わると FluentControl は自分でメソッドを閉じて `RunModeRunFinished` になる。これは空いている状態で、`CloseMethod` は不要（送ると断られる）。
-- UniteLabs のコネクタは設定が port 0 なので、再起動するとポートが変わる。このコネクタは、つながらないときに mDNS でポートだけ探し直す
-  （あちらは mDNS で `127.0.0.1` と `169.254.*` しか知らせないので、住所は設定の `fluent.host` を使う）。
+- **After restarting FluentControl, send `FluentController.GetRuntime` to the UniteLabs connector.** Otherwise it keeps pointing at the old FluentControl instance.
+- On startup FluentControl stops at the "research use only" dialog (`VX_APPFR_019_001`). It can be closed with `RuntimeController.RespondToDialog(id, "OK")`.
+- When a run finishes, FluentControl closes the method itself and enters `RunModeRunFinished`. This is an idle state; `CloseMethod` is not needed (and is rejected if sent).
+- The UniteLabs connector is configured with port 0, so its port changes on every restart. When this connector cannot connect, it rediscovers only the port via mDNS
+  (the other side advertises only `127.0.0.1` and `169.254.*` via mDNS, so the address comes from the `fluent.host` setting).
 
-## テスト
+## Tests
 
 ```bash
 uv run pytest
 ```
 
-装置にも Fluent にもつながない。XML が実機で成功したものと一致すること、危ないマクロを断ること、メソッド一覧の読み込みと
-PreMethod の対応を確かめる。
+The tests connect to neither the devices nor the Fluent. They check that the XML matches what succeeded on the instrument, that dangerous macros are rejected, that the method list loads,
+and the PreMethod pairing.
 
-## Infinite 200 PRO（Fluent 780 の中のリーダ）
+## Infinite 200 PRO (the reader inside the Fluent 780)
 
-同じパッケージに、Infinite 200 PRO 用の別のサーバ（「Tecan Infinite 200 PRO (Fluent 780)」、ポート 50063）がある。
-裏側（FluentControl のラン、UniteLabs コネクタ経由）は ODTC と共通。
+The same package contains a separate server for the Infinite 200 PRO ("Tecan Infinite 200 PRO (Fluent 780)", port 50063).
+The back end (FluentControl runs via the UniteLabs connector) is shared with the ODTC.
 
 ```bash
-cp config.infinite.example.json config.infinite.json   # 実機で動かすときは fluent.dry_run を false に
+cp config.infinite.example.json config.infinite.json   # set fluent.dry_run to false to drive the real instrument
 uv run connector start --app riken_odtc_connector.infinite:create_app -cfg config.infinite.json
 ```
 
-| Feature | Command / Property | 中身 |
+| Feature | Command / Property | Description |
 |---|---|---|
-| `TrayController` | `OpenTray` / `CloseTray` | トレイの開閉（`Magellan_Open` / `Magellan_Close`） |
-| `AbsorbanceReader` | `Methods`（P） | Fluent PC の `Magellan Pro\mth` にある測定ファイル |
-| | `MeasureLoadedPlate(Method)` | 中にあるプレートを測り、ラベル × 96 ウェルの値を返す |
-| | `ReadAbsorbance(Wavelength)` | 1 波長で 96 ウェルの OD を返す。Fluent 版は設定 `infinite.wavelength_methods` に書いた波長だけ |
-| `FluentPlateHandling` | `MeasureWorktablePlate(Labware, Method)` | ワークテーブルに登録済みのプレートを名前で運び、測って、元の位置へ戻す。ラン 1 本 |
-| | `MeasurePlate(LabwareType, Location, Site, Method)` | 未登録のプレートを一時的に登録して同じことをする（**実機では未確認**） |
+| `TrayController` | `OpenTray` / `CloseTray` | Open/close the tray (`Magellan_Open` / `Magellan_Close`) |
+| `AbsorbanceReader` | `Methods` (P) | Measurement files in `Magellan Pro\mth` on the Fluent PC |
+| | `MeasureLoadedPlate(Method)` | Measure the plate already inside and return the values as labels × 96 wells |
+| | `ReadAbsorbance(Wavelength)` | Return the OD of 96 wells at one wavelength. The Fluent version supports only wavelengths listed in the `infinite.wavelength_methods` setting |
+| `FluentPlateHandling` | `MeasureWorktablePlate(Labware, Method)` | Move a plate registered on the worktable (by name) into the reader, measure it, and return it to its original position. One run |
+| | `MeasurePlate(LabwareType, Location, Site, Method)` | Temporarily register an unregistered plate and do the same (**not verified on the instrument**) |
 
-- 搬入・測定・搬出を 1 本のランで済ませるのは、ランを新しく始めると FluentControl がラボウェアの位置を忘れるため（2026-08-13）。
-  `MeasurePlate` は、一時的な名前 `SiLA_ReaderPlate[001]` でプレートを登録し、終わったら消す。元の位置は FluentControl の記憶の上で空いていること。
-- 持ち替え位置は平底プレート用の `Regrip_Pos[1]`。**PCR プレートは今の設定ではリーダに入れられない**（2026-10-09）。
-- 結果は Magellan の ASC（latin-1）を SSH で読む。格子形式と 1 行 1 ウェル形式（行順 A1, A2, …）の両方に対応。
-- `Abs600.mth` は 37 °C の保温が有効になっている。
-- **2026-10-15 に実機で確認**: `OpenTray` / `CloseTray`（各 12 秒）、`MeasureWorktablePlate("96 Well Flat_Custom[001]", "OFML_Abs405.mth")`（全体 311 秒、うち測定 254 秒、3 ラベル × 96 ウェル）。RGA のマクロ（XML）でリーダへの搬入・搬出ができた。
-- ODTC のサーバと Infinite のサーバは、それぞれ別に「1 操作ずつ」を守るだけで、互いの操作は知らない。両方から同時に命令を出さないこと。
+- Loading, measurement and unloading are done in a single run because FluentControl forgets labware positions when a new run starts (2026-08-13).
+  `MeasurePlate` registers the plate under the temporary name `SiLA_ReaderPlate[001]` and deletes it afterwards. The source position must be empty in FluentControl's records.
+- The regrip position is `Regrip_Pos[1]`, for flat-bottom plates. **PCR plates cannot be loaded into the reader with the current setup** (2026-10-09).
+- Results are read over SSH from Magellan's ASC files (latin-1). Both the grid format and the one-well-per-line format (row order A1, A2, ...) are supported.
+- `Abs600.mth` has 37 °C incubation enabled.
+- **Verified on the instrument on 2026-10-15**: `OpenTray` / `CloseTray` (12 s each), `MeasureWorktablePlate("96 Well Flat_Custom[001]", "OFML_Abs405.mth")` (311 s total, of which 254 s measuring, 3 labels × 96 wells). Loading into and unloading from the reader worked with RGA macros (XML).
+- The ODTC server and the Infinite server each enforce "one operation at a time" independently and do not know about each other's operations. Do not send commands to both at the same time.
 
-## Infinite 200 PRO（単体、USB、PyLabRobot）
+## Infinite 200 PRO (standalone, USB, PyLabRobot)
 
-Fluent に組み込まれていない Infinite 200 PRO を、Mac や Linux の PC に USB でつないで使うサーバ（「Tecan Infinite 200 PRO (USB)」、ポート 50065）。
-**`TrayController` と `AbsorbanceReader` の定義は Fluent 版と同じ**なので、呼ぶ側は同じ Command で使える。`FluentPlateHandling` は持たない。
+A server for an Infinite 200 PRO that is not built into a Fluent, connected by USB to a Mac or Linux PC ("Tecan Infinite 200 PRO (USB)", port 50065).
+**The `TrayController` and `AbsorbanceReader` definitions are identical to the Fluent version**, so callers can use the same Commands. There is no `FluentPlateHandling`.
 
 ```bash
-cp config.infinite_usb.example.json config.infinite_usb.json   # 実機で動かすときは reader.dry_run を false に
+cp config.infinite_usb.example.json config.infinite_usb.json   # set reader.dry_run to false to drive the real instrument
 uv run connector start --app riken_odtc_connector.infinite:create_usb_app -cfg config.infinite_usb.json
 ```
 
-| Command | USB 版での動き |
+| Command | Behaviour in the USB version |
 |---|---|
-| `OpenTray` / `CloseTray` | PyLabRobot の `open()` / `close(plate)` |
-| `ReadAbsorbance(Wavelength)` | PyLabRobot の `read_absorbance(plate, 全ウェル, 波長)`。230〜1000 nm |
-| `MeasureLoadedPlate(Method)` / `Methods` | 使えない（Magellan が無い）。`Methods` は空 |
+| `OpenTray` / `CloseTray` | PyLabRobot `open()` / `close(plate)` |
+| `ReadAbsorbance(Wavelength)` | PyLabRobot `read_absorbance(plate, all wells, wavelength)`. 230–1000 nm |
+| `MeasureLoadedPlate(Method)` / `Methods` | Not available (no Magellan). `Methods` is empty |
 
-- 裏側は PyLabRobot の `ExperimentalTecanInfinite200ProBackend`（実験的、M シリーズのみ）。GitHub の main のコミット `183cabd`（2026-10-15 時点）に固定。PyPI の 0.2.2 には入っていない。
-- プレートの定義は既定で `cor_96_wellplate_360uL_Fb`（Costar 96 Flat Transparent）。
-- **Fluent PC の Infinite には使えない。** Fluent PC ではリーダが Tecan 独自の USB ドライバ（`Tecanat_Usb`）につながっていて、pyusb から開けない。
-- **実機では未確認**（単体の Infinite がつながっていない）。2026-10-15 は、PyLabRobot のバックエンドを偽物に差し替えたテストと、ドライランで確かめた。
-  リーダなしで USB につなぐと「USB device not found」で断ることは確認した。
+- The back end is PyLabRobot's `ExperimentalTecanInfinite200ProBackend` (experimental, M series only), pinned to commit `183cabd` on GitHub main (as of 2026-10-15). It is not in PyPI release 0.2.2.
+- The default plate definition is `cor_96_wellplate_360uL_Fb` (Costar 96 Flat Transparent).
+- **It cannot be used for the Infinite in the Fluent PC.** On the Fluent PC the reader is attached to Tecan's proprietary USB driver (`Tecanat_Usb`) and cannot be opened from pyusb.
+- **Not verified on an instrument** (no standalone Infinite is connected). On 2026-10-15 it was checked with tests that replace the PyLabRobot back end with a fake, and with a dry run.
+  It was confirmed that, with no reader attached, it fails with "USB device not found".

@@ -1,4 +1,4 @@
-"""Fluent 780 の Infinite 200 PRO 用サーバの組み立て（FluentControl 経由）。
+"""Server assembly for the Infinite 200 PRO in the Fluent 780 (through FluentControl).
 
     uv run connector start --app riken_odtc_connector.infinite:create_app -cfg config.infinite.json
 """

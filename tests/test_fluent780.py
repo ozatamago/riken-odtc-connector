@@ -1,4 +1,4 @@
-"""1 つにまとめたサーバ「Tecan Fluent 780」の組み立ての確認。装置にも Fluent にもつながない。"""
+"""Checks the assembly of the combined "Tecan Fluent 780" server. Connects to neither the devices nor the Fluent."""
 
 import asyncio
 
@@ -38,7 +38,7 @@ def test_one_backend_is_shared_by_every_feature():
 
 
 def test_second_operation_is_refused_and_says_what_is_running():
-    backend = FluentOdtcBackend(Fluent780ConnectorConfig().fluent)  # 既定は dry_run
+    backend = FluentOdtcBackend(Fluent780ConnectorConfig().fluent)  # dry_run by default
 
     async def scenario():
         backend.config.dry_run_seconds = 0.5
@@ -58,19 +58,19 @@ def test_rga_tracker_resyncs_memory_after_a_move(tmp_path):
     t = LabwareTracker(PlateTransferConfig(positions_file=str(tmp_path / "pos.json")))
     plate = "96 Well Flat_Custom[001]"
     assert t.where(plate) == ("Nest7mm_Pos", 6) and not t.moved_away(plate)
-    # 元の位置から運ぶときは、記憶を合わせる命令は要らない
+    # moving from the base position needs no commands to align the record
     assert [l for l, _ in t.move_steps(plate, "Regrip_Pos", 1)] == [f"RGA {plate} -> Regrip_Pos[1]"]
     t.record(plate, "Regrip_Pos", 1)
-    # 別のランで戻すときは、先に FluentControl の記憶を実際の位置（Regrip_Pos[1]）に合わせる
+    # returning it in another run first aligns FluentControl's record with the actual position (Regrip_Pos[1])
     labels = [l for l, _ in t.move_steps(plate, "Nest7mm_Pos", 6)]
     assert labels == [
-        f"RemoveLabware {plate}（記憶のみ）",
-        f"AddLabware {plate} at Regrip_Pos[1]（記憶のみ）",
+        f"RemoveLabware {plate} (bookkeeping only)",
+        f"AddLabware {plate} at Regrip_Pos[1] (bookkeeping only)",
         f"RGA {plate} -> Nest7mm_Pos[6]",
     ]
     add_xml = t.move_steps(plate, "Nest7mm_Pos", 6)[1][1]
     assert "<LabwareType>96 Well Flat_Custom</LabwareType>" in add_xml and "<Location>Regrip_Pos</Location>" in add_xml
-    # 位置はファイルにも残り、起動し直しても覚えている
+    # the position is also saved to the file and survives a restart
     assert LabwareTracker(PlateTransferConfig(positions_file=str(tmp_path / "pos.json"))).where(plate) == ("Regrip_Pos", 1)
     t.record(plate, "Nest7mm_Pos", 6)
     assert not t.moved_away(plate)
@@ -85,7 +85,8 @@ def test_rga_refuses_unregistered_labware(tmp_path):
 
 
 def test_features_can_be_turned_into_sila_definitions():
-    # CDK が Command の型を読めないとサーバが起動しない（2026-10-15: from __future__ import annotations で起動失敗）
+    # the server does not start if the CDK cannot read the Command types
+    # (2026-10-15: startup failed with from __future__ import annotations)
     from unitelabs.cdk import Connector
 
     config = Fluent780ConnectorConfig()

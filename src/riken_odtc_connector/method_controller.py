@@ -9,9 +9,9 @@ from .method_store import SNAPSHOT_TAKEN, load_methods, premethods_for
 from .progress import run_with_progress
 
 PRE_METHOD_S = 470.0
-"""PreMethod の所要時間。目標温度によらず一定（PT7M45S）。2026-10-09 の ini95 は 466.2 秒、10-15 の ini25 は 466.3 秒。"""
+"""Duration of a PreMethod, constant regardless of target (PT7M45S). ini95: 466.2 s on 2026-10-09, ini25: 466.3 s on 10-15."""
 METHOD_MARGIN = 1.07
-"""Method の見積り（平坦 + Slope どおりの昇降温）に掛ける余裕。PCR 30 サイクルは見積り 84.4 分、実測 90.5 分。"""
+"""Margin on the Method estimate (holds + ramps at the nominal Slope). 30-cycle PCR: estimated 84.4 min, measured 90.5."""
 
 
 @dataclasses.dataclass
@@ -122,7 +122,7 @@ class MethodController(sila.Feature):
           PreMethodDuration: Seconds the PreMethod itself took (0 in dry-run mode).
         """
         self._find(pre_method, "PreMethod")
-        self._last_pre_method = ""  # 途中で失敗したら「済み」とはみなさない
+        self._last_pre_method = ""  # a PreMethod that fails partway does not count as done
         try:
             elapsed = await run_with_progress(
                 self.backend, "SiLA-ODTC_ExecuteMethod", pre_method, status, PRE_METHOD_S
@@ -154,7 +154,7 @@ class MethodController(sila.Feature):
                 f"{method} starts at {m.block_temperature:g} degC and needs one of {', '.join(matching)} first "
                 f"(last PreMethod run by this connector: {done})"
             )
-        self._last_pre_method = ""  # PreMethod は Method ごとに 1 回。成功しても失敗しても使い切りとする
+        self._last_pre_method = ""  # one PreMethod per Method; it is used up whether the Method succeeds or fails
         expected = (m.estimated_seconds + m.ramp_seconds) * METHOD_MARGIN + 10
         try:
             return await run_with_progress(self.backend, "SiLA-ODTC_ExecuteMethod", method, status, expected)

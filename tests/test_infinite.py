@@ -1,7 +1,7 @@
-"""Infinite 200 PRO（Fluent 経由）の XML と ASC の読み取りの確認。装置にも Fluent にもつながない。
+"""Tests for the Infinite 200 PRO (through Fluent) XML and ASC parsing. Connects to neither the device nor Fluent.
 
-fixtures/ の XML は、実機で送ったファイルそのもの（qpcr_water_demo.py の probe_out から写した）。
-ASC は 2026-08 に実機で測った結果ファイル。
+The XML in fixtures/ is exactly what was sent to the device (copied from probe_out of qpcr_water_demo.py).
+The ASC files are results measured on the device in 2026-08.
 """
 
 import math
@@ -78,7 +78,8 @@ def test_asc_grid_format_three_labels():
 
 
 def test_asc_list_format_is_row_major():
-    # 2026-08-13: A4-D4 に黄色インク 10/20/50/100 uL。記録の OD 0.0404/0.0422/0.0425/0.0425 と一致するのは行順
+    # 2026-08-13: yellow ink 10/20/50/100 uL in A4-D4. Row-major order matches the recorded OD
+    # 0.0404/0.0422/0.0425/0.0425
     r = parse_asc((FIX / "asc_list_format.asc").read_text(encoding="latin-1"))
     g = r.values[0]
     assert [g["A4"], g["B4"], g["C4"], g["D4"]] == [0.0404, 0.0422, 0.0425, 0.0425]

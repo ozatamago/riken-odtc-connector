@@ -1,12 +1,12 @@
-"""OFML_ApiHost2 の 3 本の API チャネル（main / odtc / reader）が並行に動くかを確かめる。
+"""Check whether the three API channels of OFML_ApiHost2 (main / odtc / reader) run in parallel.
 
-腕も装置も動かさない。各チャネルに「N 秒待つ」だけの WaitStatement を送り、
-同時に送った 2 本が N 秒で終わるか（並行）、2N 秒かかるか（順番）を測る。
+Moves neither the arm nor any device. Sends each channel a WaitStatement that only waits N seconds,
+and measures whether two sent at once finish in N seconds (parallel) or take 2N seconds (sequential).
 
-Fluent PC のデスクトップ（Session 1）で、UniteLabs コネクタの venv の Python で実行する
-（comtypes が入っている）。結果は C:\\Users\\Tecan\\OFML_screen\\parallel_test_result.json に書く。
+Run on the Fluent PC desktop (Session 1) with the Python from the UniteLabs connector's venv
+(which has comtypes). The result is written to C:\\Users\\Tecan\\OFML_screen\\parallel_test_result.json.
 
-    python parallel_channel_test.py [待ち秒数（既定 30）]
+    python parallel_channel_test.py [wait seconds (default 30)]
 """
 
 import json
@@ -14,7 +14,7 @@ import sys
 import threading
 import time
 
-sys.coinit_flags = 0  # MTA。チャネルのプロキシを別スレッドから同時に使うため（UniteLabs コネクタと同じ）
+sys.coinit_flags = 0  # MTA, so the channel proxies can be used concurrently from other threads (same as the UniteLabs connector)
 
 import comtypes  # noqa: E402
 import comtypes.client  # noqa: E402
@@ -60,7 +60,7 @@ states: list[int] = []
 
 
 class Handler:
-    # CommonErrorDialog は実装しない（ダイアログへの応答は UniteLabs コネクタと人に任せる）
+    # CommonErrorDialog is not implemented (responding to dialogs is left to the UniteLabs connector and the operator)
     def IRuntimeControllerEvents_ModeChanged(self, old, current):
         states.append(current)
         note("state", old=old, current=current)
@@ -120,7 +120,7 @@ def main() -> int:
         return 4
 
     try:
-        # 1) main と odtc に同時に送る
+        # 1) send to main and odtc at once
         box: dict = {}
         th = [threading.Thread(target=send, args=(n, WAIT_S, box)) for n in ("main", "odtc")]
         for x in th:
@@ -128,7 +128,7 @@ def main() -> int:
         for x in th:
             x.join(WAIT_S * 3 + 60)
         result["steps"].append({"test": "main+odtc at once", **box})
-        # 2) 3 本同時
+        # 2) all three at once
         box = {}
         th = [threading.Thread(target=send, args=(n, WAIT_S, box)) for n in CHANNELS]
         for x in th:

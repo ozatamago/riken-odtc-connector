@@ -1,6 +1,6 @@
-"""装置に送る XML と、メソッド一覧の読み込みの確認。装置にも Fluent にもつながない。
+"""Checks the XML sent to the device and the loading of the method list. Connects to neither the device nor the Fluent.
 
-fixtures/ の XML は、実機で成功したときに送ったファイルそのもの（qpcr_water_demo.py の probe_out から写した）。
+The XML in fixtures/ is exactly what was sent in successful runs on the device (copied from qpcr_water_demo.py's probe_out).
 """
 
 import pathlib
@@ -48,7 +48,7 @@ def test_method_store_snapshot():
     assert len(methods) == 12
     assert {n for k, n in methods if k == "PreMethod"} == {"ini4", "ini25", "ini37", "ini42", "ini95"}
     pcr = methods[("Method", "95-30s_50-60s_72-30s_30cycle")]
-    # 10/9 に記録した公称値 84.4 分と一致する（実測は 90.5 分）
+    # matches the nominal 84.4 min recorded on 10/9 (measured 90.5 min)
     assert round((pcr.estimated_seconds + pcr.ramp_seconds) / 60, 1) == 84.4
     assert methods[("Method", "test")].estimated_seconds == 15
 

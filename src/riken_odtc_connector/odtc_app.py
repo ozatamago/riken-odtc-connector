@@ -1,4 +1,4 @@
-"""ODTC コネクタのサーバの組み立て（設定と create_app）。"""
+"""Assembly of the ODTC connector server (config and create_app)."""
 
 import collections.abc
 import dataclasses
@@ -35,7 +35,7 @@ async def create_app(config: OdtcConnectorConfig) -> collections.abc.AsyncGenera
     """Create the connector application."""
 
     app = Connector(config)
-    backend = FluentOdtcBackend(config.fluent)  # 扉もメソッドも同じ裏側を使い、同時には 1 操作だけ
+    backend = FluentOdtcBackend(config.fluent)  # door and method share one backend, one operation at a time
     app.register(DoorController(backend))
     app.register(MethodController(backend))
     app.register(TemperatureController(backend))

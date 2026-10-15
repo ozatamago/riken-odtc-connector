@@ -6,7 +6,7 @@ import threading
 from unitelabs.cdk import sila
 
 from ..fluent_backend import BackendError
-from .reader import FluentInfiniteReader  # noqa: F401 - 型の説明用。PyLabRobot の裏側も同じ名前の関数を持つ
+from .reader import FluentInfiniteReader  # noqa: F401 - for the type hint; the PyLabRobot backend has the same methods
 
 
 class ReaderOperationFailed(Exception):
@@ -50,13 +50,14 @@ class MeasurementResult(sila.CustomDataType):
 
 
 async def _with_progress(status: sila.Status, total: int, coro_factory):
-    """各命令の前に呼ばれる report() を数えて、進捗を送る（イベントループから送る）。"""
+    """Count the report() calls made before each step and send progress (from the event loop)."""
     loop = asyncio.get_running_loop()
     done = [0]
     finished = [False]
 
     def send(progress: float) -> None:
-        # 完了したあとに届いた更新で「実行中」に戻さない（2026-10-15、USB 版のドライランで完了が見えなくなった）
+        # Ignore updates arriving after completion, so the status does not go back to "running"
+        # (2026-10-15: completion was lost in a USB dry run)
         if not finished[0]:
             status.update(progress=progress)
 
@@ -65,9 +66,9 @@ async def _with_progress(status: sila.Status, total: int, coro_factory):
             progress = min(done[0] / max(total, 1), 0.95)
             done[0] += 1
             if threading.get_ident() == loop_thread:
-                send(progress)  # イベントループの上から呼ばれた（USB 版）
+                send(progress)  # called on the event loop (USB backend)
             else:
-                loop.call_soon_threadsafe(send, progress)  # 裏側のスレッドから呼ばれた（Fluent 版）
+                loop.call_soon_threadsafe(send, progress)  # called from a backend thread (Fluent backend)
 
     loop_thread = threading.get_ident()
     status.update(progress=0.0)
@@ -187,7 +188,8 @@ class FluentPlateHandling(sila.Feature):
         super().__init__(originator="jp.riken.bdr", category="platereader", version="1.0")
         self.reader = reader
         self.tracker = tracker
-        """RgaController と同じ LabwareTracker（あれば）。元の位置にないプレートを、元の位置から運ぼうとしないため。"""
+        """The LabwareTracker shared with RgaController (if any), so a plate that has been moved away is not fetched
+        from its original position."""
 
     @sila.ObservableCommand(errors=[ReaderOperationFailed])
     async def measure_plate(
@@ -231,7 +233,7 @@ class FluentPlateHandling(sila.Feature):
             if self.tracker is not None and labware in self.tracker.positions:
                 loc, site = self.tracker.where(labware)
                 raise BackendError(
-                    f"{labware} は今 {loc}[{site}] にあります（RgaController で動かした）。先に ReturnLabware で元の位置へ戻してください"
+                    f"{labware} is currently at {loc}[{site}] (moved by RgaController). Use ReturnLabware first"
                 )
             await self.reader.check_method(method)
             name = self.reader._measure_name()

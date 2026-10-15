@@ -1,9 +1,10 @@
-"""Fluent 780 の Infinite 200 PRO 用に、FluentControl へ送る XML を組み立てる。
+"""Build the XML sent to FluentControl for the Infinite 200 PRO in the Fluent 780.
 
-どれも実機で成功した XML と同じ形にしてある（tests/ で 1 文字ずつ比べる）。
-- Magellan_Open / Magellan_Close / Magellan_Measure: 2026-08-13 に GenericCommand で成功、10-09 にも同じ形で送った
-- RGA1_TransferLabware: 2026-10-09 に ODTC への搬送などで成功（liha_ref から写した雛形）
-- AddLabware / RemoveLabware: GUI のスクリプト 02_PCR_Ver1_0 の文の形
+Each matches XML that succeeded on the device (compared character by character in tests/).
+- Magellan_Open / Magellan_Close / Magellan_Measure: succeeded via GenericCommand on 2026-08-13, sent in the
+  same form again on 10-09
+- RGA1_TransferLabware: succeeded on 2026-10-09 for transfers to the ODTC etc. (template copied from liha_ref)
+- AddLabware / RemoveLabware: statement form from the GUI script 02_PCR_Ver1_0
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ def _esc(text: str) -> str:
 
 
 def wrap(obj_xml: str) -> str:
-    """FluentControl の文 1 つを ScriptGroup で包む（build_liha_xml.wrap と同じ）。"""
+    """Wrap one FluentControl statement in a ScriptGroup (same as build_liha_xml.wrap)."""
     body = "\n".join("    " + ln for ln in obj_xml.strip().split("\n"))
     return ("<ScriptGroup>\n  <Objects>\n" + body + "\n  </Objects>\n"
             "  <Name></Name>\n"
@@ -32,14 +33,14 @@ def wrap(obj_xml: str) -> str:
 
 
 def magellan_xml(name: str, settings: str | None = None) -> str:
-    """Magellan のマクロ。Measure の settings は「出力先,測定ファイル.mth,0,0,0」。"""
+    """A Magellan macro. Measure settings are "<output path>,<method>.mth,0,0,0"."""
     if name not in MAGELLAN_MACROS:
-        raise BackendError(f"{name} は許可していない Magellan のマクロです")
+        raise BackendError(f"{name} is not an allowed Magellan macro")
     if (name == "Magellan_Measure") != (settings is not None):
-        raise BackendError(f"{name} の引数の指定が正しくありません")
+        raise BackendError(f"Invalid arguments for {name}")
     if settings is not None and ("<" in settings or ">" in settings):
-        # 2026-08-13: <YYMMDD-NNN> の連番パターンを入れると GenericCommand が壊れた
-        raise BackendError("Magellan_Measure の引数に < > は使えません（固定のファイル名にする）")
+        # 2026-08-13: a <YYMMDD-NNN> sequence pattern broke GenericCommand
+        raise BackendError("Magellan_Measure arguments must not contain < > (use a fixed file name)")
     es = "<ExecutionSettings />" if settings is None else f"<ExecutionSettings>{_esc(settings)}</ExecutionSettings>"
     return wrap('<Object Type="Tecan.VisionX.ApplicationDriver.LegacyDriverMacro">\n'
                 f'  <LegacyDriverMacro Version="1" Name="{name}" ModuleName="Magellan"'
@@ -52,10 +53,10 @@ def magellan_xml(name: str, settings: str | None = None) -> str:
 
 def rga_xml(labware: str, location: str = "<BASE>", site: str = "",
             move_to_base: bool = False, fixed_site: bool = False) -> str:
-    """RGA1_TransferLabware。雛形の値を 3 段エスケープして差し替える（qpcr_water_demo.rga と同じ）。
+    """RGA1_TransferLabware. Replace the template values with triple-escaped text (same as qpcr_water_demo.rga).
 
-    実物の <BASE> は &amp;amp;lt;BASE&amp;amp;gt; と保存されている
-    = 内側 XML のテキスト（1 段）→ 文字列値（2 段）→ ScriptGroup の XML（3 段）。
+    The real <BASE> is stored as &amp;amp;lt;BASE&amp;amp;gt;
+    = inner XML text (level 1) -> string value (level 2) -> ScriptGroup XML (level 3).
     """
     src = RGA_TEMPLATE.read_text(encoding="utf-8").strip()
     fields = {
@@ -69,14 +70,14 @@ def rga_xml(labware: str, location: str = "<BASE>", site: str = "",
         pattern = rf"(&amp;lt;{tag}&amp;gt;).*?(&amp;lt;/{tag}&amp;gt;)"
         new, count = re.subn(pattern, lambda m: m.group(1) + _esc(_esc(_esc(value))) + m.group(2), src, count=1)
         if count != 1:
-            raise BackendError(f"RGA の雛形に {tag} がありません")
+            raise BackendError(f"RGA template has no {tag}")
         src = new
     src = re.sub(r'LineNumber="\d+"', 'LineNumber="0"', src, count=1)
     return wrap(src)
 
 
 def add_labware_xml(labware_type: str, label: str, location: str, position: int) -> str:
-    """FluentControl の記憶にラボウェアを登録する（装置は動かない）。02_PCR_Ver1_0 の文の形。"""
+    """Register labware in FluentControl's worktable memory (no device motion). Statement form from 02_PCR_Ver1_0."""
     return wrap('<Object Type="Tecan.Core.Scripting.Worktable.Data.AddLabwareDataV1">\n'
                 "  <AddLabwareDataV1>\n"
                 f"    <LabwareType>{_esc(labware_type)}</LabwareType>\n"
@@ -97,7 +98,7 @@ def add_labware_xml(labware_type: str, label: str, location: str, position: int)
 
 
 def remove_labware_xml(label: str) -> str:
-    """FluentControl の記憶からラボウェアを消す（装置は動かない）。02_PCR_Ver1_0 の文の形。"""
+    """Remove labware from FluentControl's worktable memory (no device motion). Statement form from 02_PCR_Ver1_0."""
     return wrap('<Object Type="Tecan.Core.Scripting.Worktable.Data.RemoveLabwareDataV1">\n'
                 "  <RemoveLabwareDataV1>\n"
                 f"    <LabwareName>{_esc(label)}</LabwareName>\n"

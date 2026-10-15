@@ -4,7 +4,7 @@ from .fluent_backend import BackendError, FluentOdtcBackend
 from .progress import run_with_progress
 
 DOOR_S = 10.0
-"""扉のマクロ自体の所要時間。2026-10-15 の実測は 9.3〜10.3 秒。"""
+"""Duration of the door macro itself. Measured 9.3-10.3 s on 2026-10-15."""
 
 
 class OdtcOperationFailed(Exception):

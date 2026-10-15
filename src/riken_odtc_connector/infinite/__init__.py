@@ -1,11 +1,11 @@
-"""Tecan Infinite 200 PRO 用の SiLA 2 サーバ（Feature の定義は共通、裏側が 2 通り）。
+"""SiLA 2 servers for the Tecan Infinite 200 PRO (shared feature definitions, two backends).
 
-    Fluent 780 の中のリーダ（FluentControl 経由）:
+    Reader inside the Fluent 780 (through FluentControl):
         uv run connector start --app riken_odtc_connector.infinite:create_app -cfg config.infinite.json
-    単体のリーダ（USB、PyLabRobot）:
+    Stand-alone reader (USB, PyLabRobot):
         uv run connector start --app riken_odtc_connector.infinite:create_usb_app -cfg config.infinite_usb.json
 
-UniteLabs CDK はプロセス内に設定クラスが 1 つだけあることを前提にするので、起動する方の組み立てだけを読み込む。
+The UniteLabs CDK assumes a single config class per process, so only the app being started is imported.
 """
 
 

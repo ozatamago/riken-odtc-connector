@@ -1,19 +1,25 @@
-"""Fluent 780 の温度制御つき装置（BioShake、Inheco の振とうインキュベータ、inhecoMTC、Incubator1）の温度の設定。
+"""Temperature control of the Fluent 780's heated/cooled devices (BioShake, Inheco shaking incubator, inhecoMTC,
+Incubator1).
 
-送る XML は、01〜07 の GUI スクリプトのマクロと同じ形（tests/fixtures/gui_macros/ と 1 文字ずつ比べる）。
-ExecutionSettings の値の意味は、ドライバの資料と GUI スクリプトの使われ方から判断した（2026-10-15）:
+The XML sent has the same form as the macros in GUI scripts 01-07 (compared character by character with
+tests/fixtures/gui_macros/). The meaning of the ExecutionSettings values was inferred from the driver documentation and
+from how the GUI scripts use them (2026-10-15):
 
-- BioShake_SetTemp           "<温度>"（例 "4"、"4.0"）。BioShake_TempOff で切る
-- InhecoIncubator_SetTemp    "<温度>,0.0,0"。2 番目と 3 番目の意味は不明（スクリプトはいつも 0.0,0）。Sub_Cleanup は 25 に戻す
-- inhecoMTC_SetTemperature   "<スロット>,<加熱冷却を有効にするか>,<温度>,0"。設定画面の欄は Slot / Enable Heater / Temperature。
-                             False で切る（03 の最後と 06）。4 番目の意味は不明（いつも 0）
-- Incubator1_SetTemperature  "0,<温度>"。05 の最後で 25 に戻す。1 番目の 0 は「全部の位置」と見られる
-                             （2026-10-15、1 回送るとドライバは 6 か所それぞれに設定したと記録した）
+- BioShake_SetTemp           "<temperature>" (e.g. "4", "4.0"). Switched off with BioShake_TempOff
+- InhecoIncubator_SetTemp    "<temperature>,0.0,0". The 2nd and 3rd values are unknown (scripts always use 0.0,0).
+                             Sub_Cleanup sets it back to 25
+- inhecoMTC_SetTemperature   "<slot>,<enable heating/cooling>,<temperature>,0". The settings dialog fields are
+                             Slot / Enable Heater / Temperature. False switches it off (end of 03, and 06).
+                             The 4th value is unknown (always 0)
+- Incubator1_SetTemperature  "0,<temperature>". 05 sets it back to 25 at the end. The leading 0 appears to mean
+                             "all positions" (2026-10-15: after one call the driver logged a setting for each of
+                             the 6 positions)
 
-2026-10-15 に実機で確認: BioShake 25 °C → TempOff、CPLC スロット 1 25 °C → 切る、Inheco 25 °C、Incubator1 25 °C。
-どれも 8.6〜10.1 秒で返り（温度に達するまでは待たない）、ドライバは SC_ERROR_NONE を記録した。
+Verified on the device on 2026-10-15: BioShake 25 °C -> TempOff, CPLC slot 1 25 °C -> off, Inheco 25 °C,
+Incubator1 25 °C. Each returned in 8.6-10.1 s (it does not wait for the temperature to be reached), and the driver
+logged SC_ERROR_NONE.
 
-設定できる温度の範囲は、このコネクタが安全のために絞ったもの（装置の仕様ではない）。
+The allowed temperature ranges are limits this connector imposes for safety (not the device specifications).
 """
 
 import dataclasses
@@ -26,10 +32,11 @@ from .infinite.xml import _esc, wrap
 
 
 def legacy_macro_xml(module: str, name: str, settings: str | None = None, execution_time: str = "PT2S") -> str:
-    """レガシードライバのマクロ 1 行（ODTC、Magellan と同じ形）。
+    """One legacy driver macro line (same form as for the ODTC and Magellan).
 
-    execution_time は GUI に出す所要時間の目安で、実行は待たない（ODTC の PreMethod は PT2S のまま 466 秒で完了した）。
-    GUI スクリプトでは多くが PT2S、BioShake_TempOff は PT0S、Sub_Cleanup の InhecoIncubator_SetTemp は PT1M40S。
+    execution_time is only the duration estimate shown in the GUI; execution does not wait for it (the ODTC PreMethod
+    completed in 466 s with PT2S). In the GUI scripts most use PT2S, BioShake_TempOff uses PT0S, and the
+    InhecoIncubator_SetTemp in Sub_Cleanup uses PT1M40S.
     """
     es = "<ExecutionSettings />" if settings is None else f"<ExecutionSettings>{_esc(settings)}</ExecutionSettings>"
     return wrap('<Object Type="Tecan.VisionX.ApplicationDriver.LegacyDriverMacro">\n'
@@ -50,7 +57,7 @@ def bioshake_set_temp_xml(temperature: float) -> str:
 
 
 def bioshake_temp_off_xml() -> str:
-    return legacy_macro_xml("BioShake", "BioShake_TempOff", execution_time="PT0S")  # 02_PCR と同じ
+    return legacy_macro_xml("BioShake", "BioShake_TempOff", execution_time="PT0S")  # same as 02_PCR
 
 
 def inheco_incubator_set_temp_xml(temperature: float, execution_time: str = "PT2S") -> str:
@@ -66,6 +73,48 @@ def incubator1_set_temperature_xml(temperature: float) -> str:
     return legacy_macro_xml("Incubator1", "Incubator1_SetTemperature", f"0,{_num(temperature)}")
 
 
+# ---- Moving operations (stage 3). Meaning of the values:
+#   BioShake_ShakeOn          "<speed rpm>,5" (Sub_Skake). The GUI input offers speeds 1000/1200/.../2000 as choices.
+#                             The manual ("start shaking with speed and acceleration") suggests 5 is the acceleration,
+#                             but this is unconfirmed, so it is fixed
+#   BioShake_ShakeOff         Stops shaking, returns to the home position and locks there (manual)
+#   BioShake_ElmLock/Unlock   Closes / opens the plate clamp (Edge Locking Mechanism)
+#   InhecoIncubator_ShakeOn   "14,1.0,14,1.0,180" (03). The meaning is unknown, so only this one setting is sent
+#   Incubator1_StartShaker    "<frequency Hz>". The driver accepts 1.0-8.5 Hz (string in the driver binary). 05 uses 5
+BIOSHAKE_SPEEDS = (1000, 1200, 1400, 1600, 1800, 2000)
+INHECO_SHAKE_PRESET = "14,1.0,14,1.0,180"
+
+
+def bioshake_macro_xml(name: str) -> str:
+    if name not in ("BioShake_ElmLock", "BioShake_ElmUnlock", "BioShake_ShakeOff"):
+        raise BackendError(f"{name} is not an allowed BioShake macro")
+    return legacy_macro_xml("BioShake", name)
+
+
+def bioshake_shake_on_xml(speed_rpm: int) -> str:
+    return legacy_macro_xml("BioShake", "BioShake_ShakeOn", f"{int(speed_rpm)},5")
+
+
+def inheco_incubator_macro_xml(name: str) -> str:
+    if name not in ("InhecoIncubator_Close", "InhecoIncubator_ShakeOff"):
+        raise BackendError(f"{name} is not an allowed Inheco incubator macro")
+    return legacy_macro_xml("InhecoIncubator", name)
+
+
+def inheco_incubator_shake_on_xml() -> str:
+    return legacy_macro_xml("InhecoIncubator", "InhecoIncubator_ShakeOn", INHECO_SHAKE_PRESET)
+
+
+def incubator1_macro_xml(name: str) -> str:
+    if name not in ("Incubator1_CloseDoor", "Incubator1_StopShaker"):
+        raise BackendError(f"{name} is not an allowed Incubator1 macro")
+    return legacy_macro_xml("Incubator1", name)
+
+
+def incubator1_start_shaker_xml(frequency_hz: float) -> str:
+    return legacy_macro_xml("Incubator1", "Incubator1_StartShaker", _num(frequency_hz))
+
+
 class TemperatureSettingFailed(Exception):
     """The temperature could not be set. The description explains why (out of range, FluentControl busy, ...)."""
 
@@ -73,7 +122,7 @@ class TemperatureSettingFailed(Exception):
 def _check(temperature: float, low: float, high: float, device: str) -> None:
     if not low <= temperature <= high:
         raise TemperatureSettingFailed(
-            f"{device} に設定できる温度は {low:g}〜{high:g} °C です（このコネクタが安全のために絞った範囲）"
+            f"{device} accepts {low:g} to {high:g} °C (a range this connector limits for safety)"
         )
 
 
@@ -88,7 +137,8 @@ class BioShakeController(sila.Feature):
     """
     Temperature of the BioShake Q1 (shaker with heating and cooling) on the Fluent 780.
 
-    Setting the temperature does not move anything. Shaking and the plate clamp are separate (not yet available).
+    Setting the temperature does not move anything. LockPlate / UnlockPlate / ShakeOn / ShakeOff MOVE the device.
+    ShakeOn keeps shaking until ShakeOff is sent.
     """
 
     LOW, HIGH = 4.0, 70.0
@@ -114,6 +164,33 @@ class BioShakeController(sila.Feature):
         """Switch the BioShake's temperature control off."""
         await _send(self.backend, "BioShake: TempOff", bioshake_temp_off_xml(), status)
 
+    @sila.ObservableCommand(errors=[TemperatureSettingFailed])
+    async def lock_plate(self, *, status: sila.Status) -> None:
+        """Close the plate clamp (Edge Locking Mechanism). MOVES: keep fingers away."""
+        await _send(self.backend, "BioShake: ElmLock", bioshake_macro_xml("BioShake_ElmLock"), status)
+
+    @sila.ObservableCommand(errors=[TemperatureSettingFailed])
+    async def unlock_plate(self, *, status: sila.Status) -> None:
+        """Open the plate clamp (Edge Locking Mechanism). MOVES: keep fingers away."""
+        await _send(self.backend, "BioShake: ElmUnlock", bioshake_macro_xml("BioShake_ElmUnlock"), status)
+
+    @sila.ObservableCommand(errors=[TemperatureSettingFailed])
+    async def shake_on(self, speed: int, *, status: sila.Status) -> None:
+        """
+        Start shaking. It keeps shaking until ShakeOff. MOVES. Lock the plate first if one is on the shaker.
+
+        Args:
+          Speed: Shaking speed in rpm: 1000, 1200, 1400, 1600, 1800 or 2000 (the choices of the GUI scripts).
+        """
+        if speed not in BIOSHAKE_SPEEDS:
+            raise TemperatureSettingFailed(f"Speed must be one of {', '.join(map(str, BIOSHAKE_SPEEDS))} rpm (the GUI choices)")
+        await _send(self.backend, f"BioShake: ShakeOn {speed} rpm", bioshake_shake_on_xml(speed), status)
+
+    @sila.ObservableCommand(errors=[TemperatureSettingFailed])
+    async def shake_off(self, *, status: sila.Status) -> None:
+        """Stop shaking; the shaker returns to its home position and locks there. MOVES."""
+        await _send(self.backend, "BioShake: ShakeOff", bioshake_macro_xml("BioShake_ShakeOff"), status)
+
 
 class ShakingIncubatorController(sila.Feature):
     """
@@ -136,9 +213,27 @@ class ShakingIncubatorController(sila.Feature):
         Args:
           Temperature: Target temperature in degrees Celsius (20 to 60 in this connector). 03 uses 37, cleanup 25.
         """
-        _check(temperature, self.LOW, self.HIGH, "Inheco の振とうインキュベータ")
+        _check(temperature, self.LOW, self.HIGH, "The Inheco shaking incubator")
         await _send(self.backend, f"InhecoIncubator: SetTemp {temperature:g}",
                     inheco_incubator_set_temp_xml(temperature), status)
+
+    @sila.ObservableCommand(errors=[TemperatureSettingFailed])
+    async def close(self, *, status: sila.Status) -> None:
+        """Close the incubator drawer. MOVES: keep hands and plates out of the way."""
+        await _send(self.backend, "InhecoIncubator: Close", inheco_incubator_macro_xml("InhecoIncubator_Close"), status)
+
+    @sila.ObservableCommand(errors=[TemperatureSettingFailed])
+    async def shake_on(self, *, status: sila.Status) -> None:
+        """
+        Start shaking with the setting used by 03_Transformation ("14,1.0,14,1.0,180"; the meaning of the values is
+        not documented, so only this setting is offered). It keeps shaking until ShakeOff. MOVES.
+        """
+        await _send(self.backend, "InhecoIncubator: ShakeOn", inheco_incubator_shake_on_xml(), status)
+
+    @sila.ObservableCommand(errors=[TemperatureSettingFailed])
+    async def shake_off(self, *, status: sila.Status) -> None:
+        """Stop shaking. MOVES."""
+        await _send(self.backend, "InhecoIncubator: ShakeOff", inheco_incubator_macro_xml("InhecoIncubator_ShakeOff"), status)
 
 
 class TemperaturePositionController(sila.Feature):
@@ -158,7 +253,7 @@ class TemperaturePositionController(sila.Feature):
     @staticmethod
     def _slot(slot: int) -> int:
         if slot not in (1, 2, 3):
-            raise TemperatureSettingFailed("スロットは 1〜3 です")
+            raise TemperatureSettingFailed("Slot must be 1 to 3")
         return slot
 
     @sila.ObservableCommand(errors=[TemperatureSettingFailed])
@@ -171,7 +266,7 @@ class TemperaturePositionController(sila.Feature):
           Temperature: Target temperature in degrees Celsius (4 to 70 in this connector).
         """
         self._slot(slot)
-        _check(temperature, self.LOW, self.HIGH, "温度制御の台（inhecoMTC）")
+        _check(temperature, self.LOW, self.HIGH, "The temperature position (inhecoMTC)")
         await _send(self.backend, f"inhecoMTC: slot {slot} on {temperature:.1f}",
                     mtc_set_temperature_xml(slot, True, temperature), status)
         self._last[slot] = temperature
@@ -185,7 +280,7 @@ class TemperaturePositionController(sila.Feature):
           Slot: Position 1, 2 or 3.
         """
         self._slot(slot)
-        # 切るときも温度の欄は送る（GUI スクリプトと同じ形）。直前に設定した値、なければ 25.0
+        # Switching off still sends a temperature (same form as the GUI scripts): the last set value, else 25.0
         temperature = self._last.get(slot, 25.0)
         await _send(self.backend, f"inhecoMTC: slot {slot} off", mtc_set_temperature_xml(slot, False, temperature), status)
 
@@ -214,3 +309,25 @@ class Incubator1Controller(sila.Feature):
         _check(temperature, self.LOW, self.HIGH, "Incubator1")
         await _send(self.backend, f"Incubator1: SetTemperature {temperature:g}",
                     incubator1_set_temperature_xml(temperature), status)
+
+    @sila.ObservableCommand(errors=[TemperatureSettingFailed])
+    async def close_door(self, *, status: sila.Status) -> None:
+        """Close the Incubator1 door. MOVES: keep hands out of the way."""
+        await _send(self.backend, "Incubator1: CloseDoor", incubator1_macro_xml("Incubator1_CloseDoor"), status)
+
+    @sila.ObservableCommand(errors=[TemperatureSettingFailed])
+    async def start_shaker(self, frequency: float, *, status: sila.Status) -> None:
+        """
+        Start shaking. It keeps shaking until StopShaker. MOVES.
+
+        Args:
+          Frequency: Shaking frequency in Hz, 1.0 to 8.5 (the driver's range). 05 uses 5.
+        """
+        if not 1.0 <= frequency <= 8.5:
+            raise TemperatureSettingFailed("Incubator1 shaking must be 1.0 to 8.5 Hz (the driver's range)")
+        await _send(self.backend, f"Incubator1: StartShaker {frequency:g} Hz", incubator1_start_shaker_xml(frequency), status)
+
+    @sila.ObservableCommand(errors=[TemperatureSettingFailed])
+    async def stop_shaker(self, *, status: sila.Status) -> None:
+        """Stop shaking. MOVES."""
+        await _send(self.backend, "Incubator1: StopShaker", incubator1_macro_xml("Incubator1_StopShaker"), status)

@@ -1,6 +1,6 @@
-# ODTC の ReadActualTemperature の結果（ResponseEvent に入る SensorValues）を FluentControl のログから探して出力する。
-# 読むだけで、FluentControl にも装置にも何もしない。置き場所: C:\Users\Tecan\OFML_screen\odtc_last_sensor_values.ps1
-# 現在のログ（*.ulf）に無ければ、切り替えで圧縮された直前のログ（*.zlf、中身は zip）も探す。
+# Find the result of the ODTC's ReadActualTemperature (the SensorValues in the ResponseEvent) in the FluentControl log and print it.
+# Read-only: does nothing to FluentControl or the device. Location: C:\Users\Tecan\OFML_screen\odtc_last_sensor_values.ps1
+# If not found in the current log (*.ulf), also searches the previous log compressed at rollover (*.zlf, a zip file).
 param([string]$Since = "")
 $dir = 'C:\ProgramData\Tecan\LoggingServer\LogFiles'
 $pattern = 'ResponseEvent for request:\d+ : message=Asynchronous command has finished\.[^"]*?SensorValues'

@@ -1,13 +1,14 @@
-"""Fluent 780 の装置をまとめた 1 つの SiLA 2 サーバ「Tecan Fluent 780」。
+"""A single SiLA 2 server, "Tecan Fluent 780", that combines the devices of the Fluent 780.
 
     uv run connector start --app riken_odtc_connector.fluent780:create_app -cfg config.fluent780.json
 
-FluentControl に命令を送る裏側（FluentOdtcBackend）を 1 つだけ作り、すべての Feature に渡す。
-裏側は「同時に 1 つの操作だけ」を守るので、ODTC と Infinite の操作が自動的に順番待ちになり、
-別のサーバが他人のランの窓口を終わらせてしまうこともない（2026-10-15、ODTC と Infinite のサーバを統合）。
+Only one backend that sends commands to FluentControl (FluentOdtcBackend) is created and passed to every Feature.
+The backend allows only one operation at a time, so ODTC and Infinite operations queue up automatically, and one
+server can no longer finish the channel of another server's run (2026-10-15, ODTC and Infinite servers merged).
 
-Feature の名前と中身は、ODTC 用・Infinite 用のサーバと同じ。呼ぶ側は接続先を変えるだけでよい。
-これから足す装置の Feature には、装置名を頭に付ける（例 BioShakeController）。名前の重なりを避けるため。
+Feature names and contents are the same as in the separate ODTC and Infinite servers; clients only need to change the
+address. Features for devices added from now on are prefixed with the device name (e.g. BioShakeController) to avoid
+name clashes.
 """
 
 import collections.abc
@@ -44,8 +45,8 @@ class Fluent780ConnectorConfig(ConnectorBaseConfig):
             description=(
                 "Devices of the RIKEN BDR Tecan Fluent 780, driven through FluentControl: Inheco ODTC 96 "
                 "(door, methods, temperatures), Tecan Infinite 200 PRO (tray, absorbance, plate handling), the RGA plate "
-                "gripper (moving registered labware) and the temperatures of BioShake, Inheco incubator, CPLC positions "
-                "and Incubator1."
+                "gripper (moving registered labware), and BioShake, Inheco incubator, CPLC positions and Incubator1 "
+                "(temperatures; BioShake clamp and shaking, Inheco incubator drawer and shaking, Incubator1 door and shaker)."
             ),
             version=__version__,
             vendor_url="https://www.riken.jp/",
@@ -58,7 +59,7 @@ class Fluent780ConnectorConfig(ConnectorBaseConfig):
 
 
 def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
-    """全装置の Feature を、1 つの裏側を共有する形で作る。"""
+    """Build the Features of all devices, sharing one backend."""
     backend = FluentOdtcBackend(config.fluent)
     reader = FluentInfiniteReader(backend, config.infinite)
     tracker = LabwareTracker(config.plates)
@@ -73,12 +74,12 @@ def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
         TrayController(reader),
         AbsorbanceReader(reader),
         FluentPlateHandling(reader, tracker),
-        # 温度制御つきの装置（01〜07 で使う）
+        # Devices with temperature control (used in 01-07)
         BioShakeController(backend),
         ShakingIncubatorController(backend),
         TemperaturePositionController(backend),
         Incubator1Controller(backend),
-        # 全体
+        # Overall
         StatusController(backend),
     ]
 

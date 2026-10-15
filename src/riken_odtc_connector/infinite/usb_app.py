@@ -1,7 +1,7 @@
-"""単体の Infinite 200 PRO（USB、PyLabRobot）用サーバの組み立て。
+"""Server assembly for a stand-alone Infinite 200 PRO (USB, PyLabRobot).
 
-Feature の定義は Fluent 780 の Infinite 用サーバと同じ（TrayController / AbsorbanceReader）。
-FluentPlateHandling（RGA での搬送）は持たない。
+The features are the same as in the Fluent 780 Infinite server (TrayController / AbsorbanceReader).
+FluentPlateHandling (RGA transfers) is not included.
 """
 
 import collections.abc

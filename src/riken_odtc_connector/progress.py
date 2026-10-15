@@ -1,7 +1,7 @@
-"""Observable Command の進捗を、裏側（別スレッド）の経過に合わせてイベントループから送る。
+"""Send Observable Command progress from the event loop, following the backend (worker thread) as it runs.
 
-2026-10-15 の扉の開閉では、進捗の更新を別スレッドから直接呼んでいたため、呼び出し側には
-終わったときにまとめてしか届かなかった。更新はイベントループ上の定期タスクから送る。
+In the 2026-10-15 door open/close tests, progress updates were called directly from the worker thread, so the client
+received them only all at once at the end. Updates are now sent from a periodic task on the event loop.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from unitelabs.cdk import sila
 from .fluent_backend import FluentOdtcBackend
 
 STARTUP_S = 40.0
-"""FluentControl のランの開始（初期化込み）にかかるおおよその秒数。2026-10-15 の実測は 18〜48 秒。"""
+"""Approximate seconds for a FluentControl run to start (including initialisation). Measured 18-48 s on 2026-10-15."""
 
 
 async def run_with_progress(
@@ -24,14 +24,14 @@ async def run_with_progress(
     status: sila.Status,
     expected_s: float,
 ) -> float:
-    """マクロを実行しながら、2 秒ごとに進捗と残り時間を送る。マクロ自体にかかった秒数を返す。
+    """Run the macro and send progress and remaining time every 2 s. Returns the seconds the macro itself took.
 
-    進捗は 0〜0.1 がランの開始、0.1〜0.95 がマクロ（expected_s を目安に経過時間で按分）、1.0 が完了。
+    Progress 0-0.1 is the run start, 0.1-0.95 the macro (elapsed time scaled against expected_s), 1.0 completion.
     """
     loop = asyncio.get_running_loop()
     macro_started: list[float] = []
 
-    def report(step: str) -> None:  # 裏側のスレッドから呼ばれる
+    def report(step: str) -> None:  # called from the backend thread
         if step == macro or step == "dry-run":
             loop.call_soon_threadsafe(macro_started.append, loop.time())
 

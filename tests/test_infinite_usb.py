@@ -1,4 +1,5 @@
-"""単体の Infinite（USB、PyLabRobot）の裏側の確認。リーダにはつながず、PyLabRobot のバックエンドを偽物に差し替える。"""
+"""Tests for the stand-alone Infinite backend (USB, PyLabRobot). No reader is connected; the PyLabRobot backend is
+replaced by a fake."""
 
 import asyncio
 import math
@@ -10,7 +11,7 @@ from riken_odtc_connector.infinite.plr_reader import PyLabRobotInfiniteReader, U
 
 
 class FakeBackend:
-    """ExperimentalTecanInfinite200ProBackend と同じ名前・引数の関数だけを持つ偽物。"""
+    """Fake with only the methods of ExperimentalTecanInfinite200ProBackend (same names and arguments)."""
 
     def __init__(self):
         self.calls = []
@@ -24,7 +25,7 @@ class FakeBackend:
     async def read_absorbance(self, plate, wells, wavelength, flashes=25, bandwidth=None):
         self.calls.append(("read_absorbance", wavelength, flashes, len(wells)))
         data = [[round(0.01 * (r * 12 + c), 4) for c in range(12)] for r in range(8)]
-        data[7][11] = None  # 値が返らなかったウェル
+        data[7][11] = None  # a well that returned no value
         return [{"wavelength": wavelength, "time": 0.0, "temperature": None, "data": data}]
 
     async def stop(self):
@@ -60,7 +61,7 @@ def test_read_absorbance_maps_rows_and_columns():
     assert len(g) == 96
     assert g["A1"] == 0.0 and g["A12"] == 0.11 and g["B1"] == 0.12 and g["H11"] == 0.94
     assert math.isnan(g["H12"])
-    # wells=[] はプレートの全ウェル（PyLabRobot 側で plate.get_all_items()）
+    # wells=[] means all wells of the plate (plate.get_all_items() inside PyLabRobot)
     assert reader._backend.calls == [("read_absorbance", 600, 25, 0)]
 
 

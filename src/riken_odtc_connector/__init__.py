@@ -3,8 +3,8 @@
     ODTC:     uv run connector start --app riken_odtc_connector:create_app -cfg config.json
     Infinite: uv run connector start --app riken_odtc_connector.infinite:create_app -cfg config.infinite.json
 
-UniteLabs CDK は、プロセス内に ConnectorBaseConfig の子クラスが 1 つだけあることを前提にする。
-ODTC の設定クラスは、ODTC のサーバを起動するときだけ読み込む（Infinite のサーバと同居させないため）。
+The UniteLabs CDK assumes there is only one subclass of ConnectorBaseConfig in the process.
+The ODTC config class is imported only when the ODTC server starts (so it does not coexist with the Infinite server).
 """
 
 __version__ = "0.1.0"

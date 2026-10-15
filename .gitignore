@@ -9,7 +9,7 @@ wheels/
 # Virtual environments
 .venv
 
-# ローカルの設定・ログ（config.example.json をコピーして使う）
+# Local config and logs (copy config.example.json to create your own)
 config.json
 config.dryrun.json
 logs/

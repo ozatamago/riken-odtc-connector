@@ -1,8 +1,9 @@
-"""RGA（プレートを掴む腕）でラボウェアを運ぶ Feature と、動かしたラボウェアの位置の記録。
+"""Feature that moves labware with the RGA (plate gripper), and the record of where moved labware is.
 
-FluentControl はランを始めるたびにラボウェアの位置をワークテーブルの初期位置に戻して覚え直す（2026-08-13 確認）。
-「運ぶ」と「戻す」を別のランにするには、このコネクタが今の位置を覚えておき、次のランの最初に
-RemoveLabware → AddLabware で FluentControl の記憶を実際の位置に合わせてから運ぶ（10-09 の回収と同じやり方）。
+FluentControl resets labware positions to their worktable defaults at the start of every run (confirmed 2026-08-13).
+To move and return a plate in separate runs, this connector remembers the current position and, at the start of the
+next run, aligns FluentControl's record with the actual position via RemoveLabware -> AddLabware before moving
+(the same approach as the 10-09 recovery).
 """
 
 import dataclasses
@@ -19,16 +20,16 @@ from .infinite.xml import add_labware_xml, remove_labware_xml, rga_xml
 
 @dataclasses.dataclass
 class PlateTransferConfig(Config):
-    """RGA で運んでよいラボウェアと、その元の位置（ワークテーブルの初期位置）。"""
+    """Labware the RGA may move, and its base position (its default position on the worktable)."""
 
     labware: dict = dataclasses.field(
         default_factory=lambda: {
-            # 2026-10-09 の手順書: 96 Well Flat_Custom[001] は 7mm Nest_Custom[006]（Nest7mm_Pos の site 6）
+            # 2026-10-09 protocol: 96 Well Flat_Custom[001] sits on 7mm Nest_Custom[006] (site 6 of Nest7mm_Pos)
             "96 Well Flat_Custom[001]": {"type": "96 Well Flat_Custom", "base_location": "Nest7mm_Pos", "base_site": 6},
         }
     )
     positions_file: str = "~/.riken_fluent780/labware_positions.json"
-    """動かしたラボウェアの今の位置を残すファイル。コネクタを起動し直しても覚えている。"""
+    """File holding the current positions of moved labware, so they survive a connector restart."""
 
 
 class LabwareTracker:
@@ -42,7 +43,7 @@ class LabwareTracker:
 
     def spec(self, labware: str) -> dict:
         if labware not in self.config.labware:
-            raise BackendError(f"{labware} は運んでよいラボウェアに登録されていません（設定 plates.labware）")
+            raise BackendError(f"{labware} is not registered as movable labware (setting plates.labware)")
         return self.config.labware[labware]
 
     def base(self, labware: str) -> tuple[str, int]:
@@ -50,7 +51,7 @@ class LabwareTracker:
         return s["base_location"], int(s["base_site"])
 
     def where(self, labware: str) -> tuple[str, int]:
-        """このコネクタが知っている今の位置。動かしていなければ元の位置。"""
+        """Current position as known to this connector; the base position if it has not been moved."""
         if labware in self.positions:
             loc, site = self.positions[labware]
             return loc, int(site)
@@ -68,14 +69,14 @@ class LabwareTracker:
         self.path.write_text(json.dumps(self.positions, ensure_ascii=False, indent=1), encoding="utf-8")
 
     def move_steps(self, labware: str, location: str, site: int) -> list[tuple[str, str]]:
-        """今の位置から (location, site) へ運ぶ命令。元の位置にないときは、先に FluentControl の記憶を合わせる。"""
+        """Commands to move from the current position to (location, site); if not at base, first fix FluentControl's record."""
         spec = self.spec(labware)
         steps: list[tuple[str, str]] = []
         if self.moved_away(labware):
             loc, s = self.where(labware)
             steps += [
-                (f"RemoveLabware {labware}（記憶のみ）", remove_labware_xml(labware)),
-                (f"AddLabware {labware} at {loc}[{s}]（記憶のみ）", add_labware_xml(spec["type"], labware, loc, s)),
+                (f"RemoveLabware {labware} (bookkeeping only)", remove_labware_xml(labware)),
+                (f"AddLabware {labware} at {loc}[{s}] (bookkeeping only)", add_labware_xml(spec["type"], labware, loc, s)),
             ]
         steps.append((f"RGA {labware} -> {location}[{site}]", rga_xml(labware, location, str(site), fixed_site=True)))
         return steps

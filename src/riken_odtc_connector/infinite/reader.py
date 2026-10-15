@@ -1,7 +1,8 @@
-"""Fluent 780 の Infinite 200 PRO を、FluentControl（Magellan のマクロと RGA）経由で動かす裏側。
+"""Backend that drives the Infinite 200 PRO in the Fluent 780 through FluentControl (Magellan macros and the RGA).
 
-測定の結果は FluentControl の API に返らないので、Magellan が書く ASC ファイルを SSH で読む。
-搬入・測定・搬出は FluentControl のラン 1 本で済ませる（ランを新しく始めるとラボウェアの位置を忘れる。2026-08-13 確認）。
+Measurement results are not returned through the FluentControl API, so the ASC file written by Magellan is read
+over SSH. Loading, measuring and unloading happen in a single FluentControl run (a new run forgets labware
+positions; confirmed 2026-08-13).
 """
 
 from __future__ import annotations
@@ -22,24 +23,27 @@ from .xml import add_labware_xml, magellan_xml, remove_labware_xml, rga_xml
 logger = logging.getLogger(__name__)
 
 TEMP_LABEL = "SiLA_ReaderPlate[001]"
-"""MeasurePlate が一時的に FluentControl に登録するラボウェアの名前。ワークテーブルの既存の名前と重ならないもの。"""
+"""Labware name that MeasurePlate temporarily registers in FluentControl. Must not clash with existing names on
+the worktable."""
 
 
 @dataclasses.dataclass
 class InfiniteConfig(Config):
-    """Fluent 780 の中の Infinite 200 PRO の設定。値は 2026-08-13 に実機で通したもの。"""
+    """Configuration for the Infinite 200 PRO inside the Fluent 780. Values as verified on the device on 2026-08-13."""
 
     reader_location: str = "InfiniteM200_New"
     reader_site: int = 1
     regrip_location: str = "Regrip_Pos"
-    """平底プレート用の持ち替え位置（7mm Regrip Nest）。PCR プレートは今の設定ではリーダに入れられない。"""
+    """Regrip position for flat-bottom plates (7mm Regrip Nest). PCR plates cannot go into the reader with the
+    current configuration."""
     regrip_site: int = 1
     output_dir: str = r"C:\Users\Public\Documents\Tecan\Magellan Pro\asc"
-    """Magellan_Measure の出力先。ここに「riken_<日時>」という名前で書かせ、できた .asc をこの下から探す。"""
+    """Magellan_Measure output directory. Results are written here as "riken_<timestamp>" and the resulting .asc
+    is searched for below it."""
     method_dir: str = r"C:\Users\Public\Documents\Tecan\Magellan Pro\mth"
     wavelength_methods: dict = dataclasses.field(default_factory=dict)
-    """ReadAbsorbance(波長) で使う測定ファイルの対応（例 {"600": "RIKEN_Abs600_noTemp.mth"}）。
-    1 波長・1 ラベルの測定ファイルだけを書くこと。空なら ReadAbsorbance は使えない。"""
+    """Method files used by ReadAbsorbance(wavelength) (e.g. {"600": "RIKEN_Abs600_noTemp.mth"}).
+    List only single-wavelength, single-label method files. If empty, ReadAbsorbance is unavailable."""
 
 
 class FluentInfiniteReader:
@@ -47,9 +51,9 @@ class FluentInfiniteReader:
         self.backend = backend
         self.config = config
 
-    # ---- 測定ファイル（Magellan のメソッド）
+    # ---- Method files (Magellan methods)
     async def list_methods(self) -> list[str]:
-        """method_dir の下の .mth を、method_dir からの相対パスで返す（例 "Abs600.mth"、"Azumi\\x.mth"）。"""
+        """Return the .mth files under method_dir as paths relative to it (e.g. "Abs600.mth", "Azumi\\x.mth")."""
         d = self.config.method_dir
         out = await asyncio.to_thread(
             self.backend._ssh_ps,
@@ -60,9 +64,9 @@ class FluentInfiniteReader:
 
     async def check_method(self, method: str) -> None:
         if method not in await self.list_methods():
-            raise BackendError(f"測定ファイル {method!r} が {self.config.method_dir} にありません")
+            raise BackendError(f"Method file {method!r} not found in {self.config.method_dir}")
 
-    # ---- 命令の組み立て
+    # ---- Step assembly
     def _measure_name(self) -> str:
         return "riken_" + datetime.datetime.now().strftime("%y%m%d_%H%M%S")
 
@@ -91,10 +95,11 @@ class FluentInfiniteReader:
         ]
 
     def worktable_plate_steps(self, labware: str, method: str, name: str) -> list[tuple[str, str]]:
-        """ワークテーブルに登録済みのプレートを名前で運び、測って、元の位置（ベース）へ戻す。
+        """Move a plate registered on the worktable (by name) into the reader, measure it, and return it to its base.
 
-        2026-08-13 に Tecan のサーバの TransferLabware / TransferLabwareBackToBase で通した経路と同じ。
-        ここでは同じ動きを RGA のマクロ（XML）で送る。ベースへ戻すマクロは 10-09 に ODTC_Lid で実機確認済み。
+        Same route as run with the Tecan server's TransferLabware / TransferLabwareBackToBase on 2026-08-13.
+        Here the same motions are sent as RGA macros (XML). The move-to-base macro was verified on the device
+        with ODTC_Lid on 10-09.
         """
         c = self.config
         return [
@@ -112,7 +117,7 @@ class FluentInfiniteReader:
             ("Magellan_Close", magellan_xml("Magellan_Close")),
         ]
 
-    # ---- 結果の取り出し
+    # ---- Result retrieval
     def _fetch_asc(self, name: str, since: float) -> tuple[str, AscResult]:
         d = self.config.output_dir
         script = (
@@ -127,20 +132,20 @@ class FluentInfiniteReader:
                 text = base64.b64decode(out[1]).decode("latin-1")
                 return out[0], parse_asc(text)
             if time.monotonic() > deadline:
-                raise BackendError(f"測定結果 {name}*.asc が {d} の下に見つかりませんでした")
+                raise BackendError(f"Result file {name}*.asc not found under {d}")
             time.sleep(3)
 
-    # ---- Feature から呼ぶ入口
+    # ---- Entry points called from the features
     async def run(self, steps: list[tuple[str, str]], name: str | None, report) -> tuple[str, AscResult | None]:
         started = time.time()
         labels = [label for label, _ in steps]
-        what = "Infinite: " + (labels[0] if len(labels) == 1 else next((x for x in labels if "Measure" in x), labels[0]) + f" など {len(labels)} 命令")
+        what = "Infinite: " + (labels[0] if len(labels) == 1 else next((x for x in labels if "Measure" in x), labels[0]) + f" and others ({len(labels)} steps)")
         await self.backend.run_steps(steps, report, what)
         if name is None or self.backend.config.dry_run:
             return "", None
         return await asyncio.to_thread(self._fetch_asc, name, started)
 
-    # ---- 共通の入口（features.py は裏側の違いを知らない。plr_reader.py も同じ名前で持つ）
+    # ---- Common entry points (features.py does not know which backend it uses; plr_reader.py has the same names)
     kind = "fluent"
 
     async def open_tray(self, report) -> None:
@@ -158,8 +163,8 @@ class FluentInfiniteReader:
         method = self.config.wavelength_methods.get(str(wavelength))
         if not method:
             raise BackendError(
-                f"この Infinite（Fluent 経由）には {wavelength} nm の測定ファイルが設定されていません"
-                "（設定 infinite.wavelength_methods）。MeasureLoadedPlate で測定ファイルを指定してください"
+                f"No method file is configured for {wavelength} nm on this Infinite (through Fluent)"
+                " (setting infinite.wavelength_methods). Use MeasureLoadedPlate with a method file instead"
             )
         path, asc = await self.measure_loaded(method, report)
         if asc is not None:

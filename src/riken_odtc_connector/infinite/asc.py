@@ -1,9 +1,9 @@
-"""Magellan が書き出す ASC ファイル（latin-1）から、96 ウェルの値を取り出す。
+"""Extract the 96 well values from the ASC files (latin-1) written by Magellan.
 
-2026-08 に見た形は 2 通り:
-- 格子形式: 先頭にラベル名の行（Label1 ...）、そのあと「<>\\t1\\t2...」の見出しと A〜H の 8 行が、ラベルの数だけ続く
-  （OFML_Abs405.mth、OFML_ColorMix3.mth）
-- 1 行 1 ウェル形式: 数値だけの行が 96 行、そのあとメタデータ（Abs600.mth、8/13 のメモ）
+Two layouts seen as of 2026-08:
+- Grid layout: label name lines first (Label1 ...), then one block per label of a "<>\\t1\\t2..." header
+  followed by the 8 rows A-H (OFML_Abs405.mth, OFML_ColorMix3.mth)
+- One-well-per-line layout: 96 lines of plain numbers, then metadata (Abs600.mth, notes from 08-13)
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ ROWS = "ABCDEFGH"
 @dataclasses.dataclass
 class AscResult:
     labels: list[str]
-    values: list[dict[str, float]]  # ラベルごとに {"A1": 0.05, ...}
+    values: list[dict[str, float]]  # one {"A1": 0.05, ...} per label
     metadata: list[str]
 
 
@@ -26,7 +26,7 @@ def _num(text: str) -> float:
     try:
         return float(text)
     except ValueError:
-        return float("nan")  # "OVER" などはそのまま値にできないので NaN にする
+        return float("nan")  # values such as "OVER" are not numbers, so use NaN
 
 
 def parse_asc(text: str) -> AscResult:
@@ -44,10 +44,10 @@ def parse_asc(text: str) -> AscResult:
             grid: dict[str, float] = {}
             for row in ROWS:
                 if i >= len(lines):
-                    raise ValueError("ASC の格子が途中で終わっています")
+                    raise ValueError("ASC grid ends prematurely")
                 parts = lines[i].split("\t")
                 if parts[0].strip() != row:
-                    raise ValueError(f"ASC の行見出しが想定と違います: {parts[0]!r}（{row} のはず）")
+                    raise ValueError(f"Unexpected ASC row header: {parts[0]!r} (expected {row})")
                 for col, value in zip(cols, parts[1:]):
                     grid[f"{row}{int(col)}"] = _num(value)
                 i += 1
@@ -58,7 +58,7 @@ def parse_asc(text: str) -> AscResult:
             numbers.append(_num(lines[i].split("\t")[0]))
             i += 1
         if len(numbers) != 96:
-            raise ValueError(f"ASC から 96 ウェルの値を読めませんでした（{len(numbers)} 個）")
+            raise ValueError(f"Could not read 96 well values from the ASC file (got {len(numbers)})")
         grids.append({f"{ROWS[k // 12]}{k % 12 + 1}": v for k, v in enumerate(numbers)})
     if not labels or len(labels) != len(grids):
         labels = [f"Label{k + 1}" for k in range(len(grids))]

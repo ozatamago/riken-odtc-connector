@@ -1,9 +1,9 @@
-"""FluentControl の GUI スクリプト（.xscr）から装置のマクロを取り出し、テストの「正解」として保存する。
+"""Extract device macros from FluentControl GUI scripts (.xscr) and save them as reference fixtures for the tests.
 
-    uv run python tools/extract_gui_macros.py <xscr のフォルダ> tests/fixtures/gui_macros
+    uv run python tools/extract_gui_macros.py <folder of .xscr files> tests/fixtures/gui_macros
 
-マクロ名と ExecutionSettings の組み合わせごとに 1 つずつ、<Object> の XML をそのまま保存する（LineNumber だけ 0 にする）。
-無効化された行（IsDisabledForExecution="true"）は除く。どのスクリプトの何行目から取ったかを index.tsv に書く。
+Saves the <Object> XML verbatim, one per combination of macro name and ExecutionSettings (only LineNumber is set to 0).
+Disabled lines (IsDisabledForExecution="true") are skipped. index.tsv records the script and line each one came from.
 """
 
 import pathlib
@@ -49,7 +49,7 @@ def main(src: pathlib.Path, out: pathlib.Path) -> None:
             short = settings if len(settings) < 120 else settings[:117] + "..."
             index.append(f"{fname}\t{module}\t{macro}\t{short}\t{name}\t{line}")
     (out / "index.tsv").write_text("\n".join(index) + "\n", encoding="utf-8")
-    print(f"{len(seen)} 個のマクロを {out} に保存")
+    print(f"Saved {len(seen)} macros to {out}")
 
 
 if __name__ == "__main__":
