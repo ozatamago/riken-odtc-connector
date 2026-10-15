@@ -98,6 +98,7 @@ uv run connector start --app riken_odtc_connector.infinite:create_app -cfg confi
 | `TrayController` | `OpenTray` / `CloseTray` | トレイの開閉（`Magellan_Open` / `Magellan_Close`） |
 | `AbsorbanceReader` | `Methods`（P） | Fluent PC の `Magellan Pro\mth` にある測定ファイル |
 | | `MeasureLoadedPlate(Method)` | 中にあるプレートを測り、ラベル × 96 ウェルの値を返す |
+| | `ReadAbsorbance(Wavelength)` | 1 波長で 96 ウェルの OD を返す。Fluent 版は設定 `infinite.wavelength_methods` に書いた波長だけ |
 | `FluentPlateHandling` | `MeasureWorktablePlate(Labware, Method)` | ワークテーブルに登録済みのプレートを名前で運び、測って、元の位置へ戻す。ラン 1 本 |
 | | `MeasurePlate(LabwareType, Location, Site, Method)` | 未登録のプレートを一時的に登録して同じことをする（**実機では未確認**） |
 
@@ -108,3 +109,25 @@ uv run connector start --app riken_odtc_connector.infinite:create_app -cfg confi
 - `Abs600.mth` は 37 °C の保温が有効になっている。
 - **2026-10-15 に実機で確認**: `OpenTray` / `CloseTray`（各 12 秒）、`MeasureWorktablePlate("96 Well Flat_Custom[001]", "OFML_Abs405.mth")`（全体 311 秒、うち測定 254 秒、3 ラベル × 96 ウェル）。RGA のマクロ（XML）でリーダへの搬入・搬出ができた。
 - ODTC のサーバと Infinite のサーバは、それぞれ別に「1 操作ずつ」を守るだけで、互いの操作は知らない。両方から同時に命令を出さないこと。
+
+## Infinite 200 PRO（単体、USB、PyLabRobot）
+
+Fluent に組み込まれていない Infinite 200 PRO を、Mac や Linux の PC に USB でつないで使うサーバ（「Tecan Infinite 200 PRO (USB)」、ポート 50065）。
+**`TrayController` と `AbsorbanceReader` の定義は Fluent 版と同じ**なので、呼ぶ側は同じ Command で使える。`FluentPlateHandling` は持たない。
+
+```bash
+cp config.infinite_usb.example.json config.infinite_usb.json   # 実機で動かすときは reader.dry_run を false に
+uv run connector start --app riken_odtc_connector.infinite:create_usb_app -cfg config.infinite_usb.json
+```
+
+| Command | USB 版での動き |
+|---|---|
+| `OpenTray` / `CloseTray` | PyLabRobot の `open()` / `close(plate)` |
+| `ReadAbsorbance(Wavelength)` | PyLabRobot の `read_absorbance(plate, 全ウェル, 波長)`。230〜1000 nm |
+| `MeasureLoadedPlate(Method)` / `Methods` | 使えない（Magellan が無い）。`Methods` は空 |
+
+- 裏側は PyLabRobot の `ExperimentalTecanInfinite200ProBackend`（実験的、M シリーズのみ）。GitHub の main のコミット `183cabd`（2026-10-15 時点）に固定。PyPI の 0.2.2 には入っていない。
+- プレートの定義は既定で `cor_96_wellplate_360uL_Fb`（Costar 96 Flat Transparent）。
+- **Fluent PC の Infinite には使えない。** Fluent PC ではリーダが Tecan 独自の USB ドライバ（`Tecanat_Usb`）につながっていて、pyusb から開けない。
+- **実機では未確認**（単体の Infinite がつながっていない）。2026-10-15 は、PyLabRobot のバックエンドを偽物に差し替えたテストと、ドライランで確かめた。
+  リーダなしで USB につなぐと「USB device not found」で断ることは確認した。

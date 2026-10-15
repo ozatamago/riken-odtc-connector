@@ -1,0 +1,34 @@
+{
+  "sila_server": {
+    "hostname": "0.0.0.0",
+    "port": 50065,
+    "tls": false,
+    "require_client_auth": false,
+    "root_certificates": null,
+    "certificate_chain": null,
+    "private_key": null,
+    "options": {},
+    "uuid": "1f3e5d7c-9b2a-4e6f-8c1d-3a5b7c9e0f2d",
+    "name": "Tecan Infinite 200 PRO (USB)",
+    "type": "PlateReader",
+    "description": "Control a stand-alone Tecan Infinite 200 PRO plate reader over USB (PyLabRobot backend).",
+    "version": "0.1",
+    "vendor_url": "https://www.riken.jp/",
+    "default_lifetime": 3600.0
+  },
+  "cloud_servers": {
+    "enabled": true,
+    "endpoints": []
+  },
+  "discovery": {
+    "ip_version": "ipv4",
+    "network_interfaces": null,
+    "certificate": null
+  },
+  "logging": null,
+  "reader": {
+    "plate_model": "cor_96_wellplate_360uL_Fb",
+    "flashes": 25,
+    "dry_run": true
+  }
+}

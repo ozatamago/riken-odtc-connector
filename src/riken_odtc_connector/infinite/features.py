@@ -1,11 +1,12 @@
 import asyncio
 import dataclasses
 import datetime
+import threading
 
 from unitelabs.cdk import sila
 
 from ..fluent_backend import BackendError
-from .reader import FluentInfiniteReader
+from .reader import FluentInfiniteReader  # noqa: F401 - 型の説明用。PyLabRobot の裏側も同じ名前の関数を持つ
 
 
 class ReaderOperationFailed(Exception):
@@ -52,14 +53,28 @@ async def _with_progress(status: sila.Status, total: int, coro_factory):
     """各命令の前に呼ばれる report() を数えて、進捗を送る（イベントループから送る）。"""
     loop = asyncio.get_running_loop()
     done = [0]
+    finished = [False]
+
+    def send(progress: float) -> None:
+        # 完了したあとに届いた更新で「実行中」に戻さない（2026-10-15、USB 版のドライランで完了が見えなくなった）
+        if not finished[0]:
+            status.update(progress=progress)
 
     def report(step: str) -> None:
         if step != "dry-run" and not step.startswith(("PrepareMethod", "waiting", "Run", "Edit")):
-            loop.call_soon_threadsafe(lambda: status.update(progress=min(done[0] / max(total, 1), 0.95)))
+            progress = min(done[0] / max(total, 1), 0.95)
             done[0] += 1
+            if threading.get_ident() == loop_thread:
+                send(progress)  # イベントループの上から呼ばれた（USB 版）
+            else:
+                loop.call_soon_threadsafe(send, progress)  # 裏側のスレッドから呼ばれた（Fluent 版）
 
+    loop_thread = threading.get_ident()
     status.update(progress=0.0)
-    result = await coro_factory(report)
+    try:
+        result = await coro_factory(report)
+    finally:
+        finished[0] = True
     status.update(progress=1.0, remaining_time=datetime.timedelta(0))
     return result
 
@@ -82,31 +97,32 @@ class TrayController(sila.Feature):
         super().__init__(originator="jp.riken.bdr", category="platereader", version="1.0")
         self.reader = reader
 
-    async def _tray(self, macro: str, status: sila.Status) -> None:
-        from .xml import magellan_xml
-
+    async def _tray(self, fn, status: sila.Status) -> None:
         try:
-            await _with_progress(status, 1, lambda report: self.reader.run([(macro, magellan_xml(macro))], None, report))
+            await _with_progress(status, 1, fn)
         except BackendError as exc:
             raise ReaderOperationFailed(str(exc)) from None
 
     @sila.ObservableCommand(errors=[ReaderOperationFailed])
     async def open_tray(self, *, status: sila.Status) -> None:
         """Move the tray out of the reader."""
-        await self._tray("Magellan_Open", status)
+        await self._tray(self.reader.open_tray, status)
 
     @sila.ObservableCommand(errors=[ReaderOperationFailed])
     async def close_tray(self, *, status: sila.Status) -> None:
         """Move the tray into the reader."""
-        await self._tray("Magellan_Close", status)
+        await self._tray(self.reader.close_tray, status)
 
 
 class AbsorbanceReader(sila.Feature):
     """
-    Measure the plate that is already in the Tecan Infinite 200 PRO, with a Magellan method file.
+    Measure the plate that is already in the Tecan Infinite 200 PRO.
 
-    The result is read from the ASC file that Magellan writes on the Fluent PC. A 96-well absorbance read takes
-    about 30 seconds plus the FluentControl run start.
+    The same feature is served by two kinds of servers:
+    - Fluent 780 reader (through FluentControl and Magellan): MeasureLoadedPlate runs a Magellan method file;
+      ReadAbsorbance works for the wavelengths configured with a method file.
+    - Stand-alone reader (USB, PyLabRobot): ReadAbsorbance takes any wavelength; MeasureLoadedPlate is not
+      available (no Magellan), and Methods is empty.
     """
 
     def __init__(self, reader: FluentInfiniteReader):
@@ -134,14 +150,28 @@ class AbsorbanceReader(sila.Feature):
           Result: The measured values and the result file.
         """
         try:
-            await self.reader.check_method(method)
-            name = self.reader._measure_name()
-            path, asc = await _with_progress(
-                status, 1, lambda report: self.reader.run(self.reader.measure_steps(method, name), name, report)
-            )
+            path, asc = await _with_progress(status, 1, lambda report: self.reader.measure_loaded(method, report))
         except BackendError as exc:
             raise ReaderOperationFailed(str(exc)) from None
         return _result(method, path, asc)
+
+    @sila.ObservableCommand(errors=[ReaderOperationFailed])
+    async def read_absorbance(self, wavelength: int, *, status: sila.Status) -> MeasurementResult:
+        """
+        Read the absorbance of the plate that is in the reader now, at one wavelength, for all 96 wells.
+        The tray must be closed with the plate inside.
+
+        Args:
+          Wavelength: Wavelength in nm (230 to 1000).
+
+        Returns:
+          Result: The measured OD values, one label named like "600nm".
+        """
+        try:
+            path, asc = await _with_progress(status, 1, lambda report: self.reader.read_absorbance(wavelength, report))
+        except BackendError as exc:
+            raise ReaderOperationFailed(str(exc)) from None
+        return _result(f"{wavelength}nm", path, asc)
 
 
 class FluentPlateHandling(sila.Feature):

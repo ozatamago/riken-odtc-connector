@@ -37,6 +37,9 @@ class InfiniteConfig(Config):
     output_dir: str = r"C:\Users\Public\Documents\Tecan\Magellan Pro\asc"
     """Magellan_Measure の出力先。ここに「riken_<日時>」という名前で書かせ、できた .asc をこの下から探す。"""
     method_dir: str = r"C:\Users\Public\Documents\Tecan\Magellan Pro\mth"
+    wavelength_methods: dict = dataclasses.field(default_factory=dict)
+    """ReadAbsorbance(波長) で使う測定ファイルの対応（例 {"600": "RIKEN_Abs600_noTemp.mth"}）。
+    1 波長・1 ラベルの測定ファイルだけを書くこと。空なら ReadAbsorbance は使えない。"""
 
 
 class FluentInfiniteReader:
@@ -134,3 +137,29 @@ class FluentInfiniteReader:
         if name is None or self.backend.config.dry_run:
             return "", None
         return await asyncio.to_thread(self._fetch_asc, name, started)
+
+    # ---- 共通の入口（features.py は裏側の違いを知らない。plr_reader.py も同じ名前で持つ）
+    kind = "fluent"
+
+    async def open_tray(self, report) -> None:
+        await self.run([("Magellan_Open", magellan_xml("Magellan_Open"))], None, report)
+
+    async def close_tray(self, report) -> None:
+        await self.run([("Magellan_Close", magellan_xml("Magellan_Close"))], None, report)
+
+    async def measure_loaded(self, method: str, report) -> tuple[str, AscResult | None]:
+        await self.check_method(method)
+        name = self._measure_name()
+        return await self.run(self.measure_steps(method, name), name, report)
+
+    async def read_absorbance(self, wavelength: int, report) -> tuple[str, AscResult | None]:
+        method = self.config.wavelength_methods.get(str(wavelength))
+        if not method:
+            raise BackendError(
+                f"この Infinite（Fluent 経由）には {wavelength} nm の測定ファイルが設定されていません"
+                "（設定 infinite.wavelength_methods）。MeasureLoadedPlate で測定ファイルを指定してください"
+            )
+        path, asc = await self.measure_loaded(method, report)
+        if asc is not None:
+            asc.labels = [f"{wavelength}nm"] + asc.labels[1:]
+        return path, asc

@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "pylabrobot[usb]",
     "sila2==0.14.0",
     "unitelabs-cdk~=0.13.6",
 ]
@@ -23,3 +24,6 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv.sources]
+pylabrobot = { git = "https://github.com/PyLabRobot/pylabrobot.git", rev = "183cabd61fd37b97375c97f136a9eca5252ce2b8" }
