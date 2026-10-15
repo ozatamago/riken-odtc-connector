@@ -1,0 +1,36 @@
+{
+  "sila_server": {
+    "hostname": "10.5.1.213",
+    "port": 50061,
+    "tls": false,
+    "require_client_auth": false,
+    "root_certificates": null,
+    "certificate_chain": null,
+    "private_key": null,
+    "options": {},
+    "uuid": "6a1d7c2e-0d6f-4b8e-9a51-3f0c2b7d9e10",
+    "name": "Inheco ODTC (Fluent 780)",
+    "type": "ThermalCycler",
+    "description": "Control the Inheco ODTC 96 thermal cycler integrated in the Tecan Fluent 780.",
+    "version": "0.1",
+    "vendor_url": "https://www.riken.jp/",
+    "default_lifetime": 3600.0
+  },
+  "cloud_servers": {
+    "enabled": true,
+    "endpoints": []
+  },
+  "discovery": {
+    "ip_version": "ipv4",
+    "network_interfaces": null,
+    "certificate": null
+  },
+  "logging": null,
+  "fluent": {
+    "host": "10.5.1.156",
+    "port": 51822,
+    "dry_run": false,
+    "channel_timeout_s": 300.0,
+    "finish_timeout_s": 180.0
+  }
+}

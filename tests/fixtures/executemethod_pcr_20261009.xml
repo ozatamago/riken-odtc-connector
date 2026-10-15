@@ -1,0 +1,13 @@
+<ScriptGroup>
+  <Objects>
+    <Object Type="Tecan.VisionX.ApplicationDriver.LegacyDriverMacro">
+      <LegacyDriverMacro Version="1" Name="SiLA-ODTC_ExecuteMethod" ModuleName="SiLA-ODTC" ExecutionTime="PT2S" IsBreakpoint="false" IsDisabledForExecution="false" LineNumber="0">
+        <ExecutionSettings>95-30s_50-60s_72-30s_30cycle</ExecutionSettings>
+      </LegacyDriverMacro>
+    </Object>
+  </Objects>
+  <Name></Name>
+  <IsBreakpoint>False</IsBreakpoint>
+  <IsDisabledForExecution>False</IsDisabledForExecution>
+  <LineNumber>0</LineNumber>
+</ScriptGroup>
