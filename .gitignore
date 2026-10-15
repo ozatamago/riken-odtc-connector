@@ -18,3 +18,5 @@ config.infinite.json
 config.infinite.dryrun.json
 config.infinite_usb.json
 config.infinite_usb.dryrun.json
+config.fluent780.json
+config.fluent780.dryrun.json

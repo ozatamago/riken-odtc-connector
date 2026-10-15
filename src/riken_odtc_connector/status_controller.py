@@ -6,11 +6,11 @@ from .fluent_backend import BackendError, FluentOdtcBackend
 
 class StatusController(sila.Feature):
     """
-    Whether the ODTC can take a command now. Reading these properties never moves or heats anything.
+    Whether the connector can take a command now. Reading these properties never moves or heats anything.
 
-    The ODTC is driven through Tecan FluentControl, so it can only run a command while FluentControl is idle
+    The devices are driven through Tecan FluentControl, so a command can only start while FluentControl is idle
     (EditMode or RunModeRunFinished), no FluentControl dialog is waiting, and this connector is not already
-    running another ODTC operation.
+    running another operation (on any device).
     """
 
     def __init__(self, backend: FluentOdtcBackend):
@@ -19,8 +19,13 @@ class StatusController(sila.Feature):
 
     @sila.UnobservableProperty()
     async def get_busy(self) -> bool:
-        """True while this connector is running an ODTC operation (door, PreMethod, Method, temperature)."""
+        """True while this connector is sending something to FluentControl (any device: ODTC, Infinite, ...)."""
         return self.backend.busy
+
+    @sila.UnobservableProperty()
+    async def get_current_operation(self) -> str:
+        """What this connector is doing now, e.g. "ODTC: SiLA-ODTC_ExecuteMethod ini95". Empty when idle."""
+        return self.backend.current_operation
 
     @sila.UnobservableProperty(errors=[OdtcOperationFailed])
     async def get_fluent_control_state(self) -> str:

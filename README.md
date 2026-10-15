@@ -1,7 +1,26 @@
 # riken-odtc-connector
 
-理研 BDR の Tecan Fluent 780 に組み込まれた **Inheco ODTC 96**（サーマルサイクラー）を、SiLA 2 で操作するコネクタ。
-[UniteLabs CDK](https://docs.unitelabs.io/connector-development/) で作り、FluentControl を経由して ODTC を動かす。
+理研 BDR の Tecan Fluent 780 に組み込まれた装置を、SiLA 2 で操作するコネクタ。[UniteLabs CDK](https://docs.unitelabs.io/connector-development/) で作り、FluentControl を経由して動かす。
+
+## まず使うもの: 1 つにまとめたサーバ「Tecan Fluent 780」（2026-10-15〜）
+
+```bash
+cp config.fluent780.example.json config.fluent780.json   # 実機で動かすときは fluent.dry_run を false に
+uv run connector start --app riken_odtc_connector.fluent780:create_app -cfg config.fluent780.json
+```
+
+ODTC と Infinite 200 PRO の Feature（下の各節）を 1 つのサーバ（ポート 50060）に並べ、FluentControl に命令を送る裏側を 1 つだけにしたもの。
+**同時に 1 つの操作だけ**を守るので、別の装置の操作は「別の操作が実行中です（…）」で断られる。
+`StatusController.CurrentOperation` で、今何をしているかが分かる。
+
+装置ごとのサーバ（ODTC 用 50061、Infinite 用 50063）も残してあるが、**このサーバと同時に動かさないこと**（互いの操作を知らず、
+UniteLabs コネクタの「最後に開いた窓口」を通して他人のランを終わらせてしまうおそれがある）。
+
+これから足す装置の Feature には、装置名を頭に付ける（例 `BioShakeController`）。ODTC の `TemperatureController` は名前を変えずに残している。
+
+---
+
+## ODTC
 
 ```
 SiLA 2 クライアント（UniteLabs App、Python など）
@@ -29,7 +48,7 @@ FluentControl（メソッド OFML_ApiHost）→ SiLA-ODTC ドライバ → ODTC
 | | `RunMethod(Method)` | 温度プログラム。直前に対応する PreMethod が要る | `test` 16.0 秒 |
 | | `LastPreMethod`（P） | このコネクタが最後に済ませた PreMethod | |
 | `TemperatureController` | `ReadTemperatures` | ブロック・蓋などの温度（°C） | 約 12 秒 |
-| `StatusController` | `Ready` / `Busy` / `FluentControlState` / `ActiveDialogs`（P） | 今すぐ命令を受けられるか | |
+| `StatusController` | `Ready` / `Busy` / `CurrentOperation` / `FluentControlState` / `ActiveDialogs`（P） | 今すぐ命令を受けられるか、今何をしているか | |
 
 （P）は Property。それ以外は Observable Command で、進捗と残り時間を 2 秒ごとに返す。
 

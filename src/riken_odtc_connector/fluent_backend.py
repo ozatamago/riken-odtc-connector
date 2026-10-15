@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import dataclasses
 import logging
 import time
@@ -131,6 +132,8 @@ class FluentOdtcBackend:
         self.config = config
         self._lock = asyncio.Lock()
         self._client = None
+        self.current_operation = ""
+        """今実行中の操作の説明（例 "ODTC: SiLA-ODTC_OpenDoor"）。空なら何もしていない。"""
 
     # ---- 同期の SiLA2 クライアント（別スレッドで呼ぶ）
     def _c(self):
@@ -254,17 +257,26 @@ class FluentOdtcBackend:
     # ---- Feature から呼ぶ入口
     async def run_macro(self, name: str, settings: str | None = None, report=lambda _: None) -> float:
         """ODTC マクロを 1 本実行し、マクロ自体にかかった秒数を返す。同時には 1 本だけ。"""
-        if self._lock.locked():
-            raise BackendError("別の ODTC 操作が実行中です")
-        async with self._lock:
+        async with self._exclusive(f"ODTC: {name}" + (f" {settings}" if settings else "")):
             return await asyncio.to_thread(self._guarded, self._run_macro, name, settings, report)
 
-    async def run_steps(self, steps: list[tuple[str, str]], report=lambda _: None) -> list[float]:
+    async def run_steps(self, steps: list[tuple[str, str]], report=lambda _: None, what: str = "") -> list[float]:
         """複数の XML の命令を、ラン 1 本の中で順に送る（搬入・測定・搬出を 1 本で済ませる用）。"""
-        if self._lock.locked():
-            raise BackendError("別の操作が実行中です")
-        async with self._lock:
+        what = what or (steps[0][0] if len(steps) == 1 else f"{steps[0][0]} ほか {len(steps) - 1} 命令")
+        async with self._exclusive(what):
             return await asyncio.to_thread(self._guarded, self._run_steps, steps, report)
+
+    @contextlib.asynccontextmanager
+    async def _exclusive(self, what: str):
+        """FluentControl に命令を送る操作は、このサーバの中で同時に 1 つだけ。断るときは何が実行中かを伝える。"""
+        if self._lock.locked():
+            raise BackendError(f"別の操作が実行中です（{self.current_operation}）")
+        async with self._lock:
+            self.current_operation = what
+            try:
+                yield
+            finally:
+                self.current_operation = ""
 
     # ---- 温度（ReadActualTemperature の結果は FluentControl に返らず、ドライバのログにだけ残る）
     def _ssh_ps(self, args: str) -> str:
@@ -302,9 +314,7 @@ class FluentOdtcBackend:
 
     async def read_sensor_values(self, report=lambda _: None) -> dict[str, float | str]:
         """ReadActualTemperature を送り、結果を FluentControl のログから読む。値は degC。"""
-        if self._lock.locked():
-            raise BackendError("別の ODTC 操作が実行中です")
-        async with self._lock:
+        async with self._exclusive("ODTC: 温度の読み取り"):
             return await asyncio.to_thread(self._guarded, self._read_sensor_values, report)
 
     def _guarded(self, fn, *args):

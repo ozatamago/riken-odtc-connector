@@ -1,0 +1,50 @@
+{
+  "sila_server": {
+    "hostname": "10.5.1.213",
+    "port": 50060,
+    "tls": false,
+    "require_client_auth": false,
+    "root_certificates": null,
+    "certificate_chain": null,
+    "private_key": null,
+    "options": {},
+    "uuid": "7c3f1e9a-2b5d-4a8e-b6c4-0d1f2e3a4b50",
+    "name": "Tecan Fluent 780",
+    "type": "Workcell",
+    "description": "Devices of the RIKEN BDR Tecan Fluent 780, driven through FluentControl: Inheco ODTC 96 (door, methods, temperatures) and Tecan Infinite 200 PRO (tray, absorbance, plate handling).",
+    "version": "0.1",
+    "vendor_url": "https://www.riken.jp/",
+    "default_lifetime": 3600.0
+  },
+  "cloud_servers": {
+    "enabled": true,
+    "endpoints": []
+  },
+  "discovery": {
+    "ip_version": "ipv4",
+    "network_interfaces": null,
+    "certificate": null
+  },
+  "logging": null,
+  "fluent": {
+    "host": "10.5.1.156",
+    "port": 51822,
+    "unitelabs_uuid": "6f944f98-9763-4b26-9467-681cf42c9e18",
+    "dry_run": true,
+    "dry_run_seconds": 0.0,
+    "ssh_target": "Tecan@10.5.1.156",
+    "sensor_script": "C:\\Users\\Tecan\\OFML_screen\\odtc_last_sensor_values.ps1",
+    "channel_timeout_s": 300.0,
+    "finish_timeout_s": 180.0,
+    "api_channel": "ofml"
+  },
+  "infinite": {
+    "reader_location": "InfiniteM200_New",
+    "reader_site": 1,
+    "regrip_location": "Regrip_Pos",
+    "regrip_site": 1,
+    "output_dir": "C:\\Users\\Public\\Documents\\Tecan\\Magellan Pro\\asc",
+    "method_dir": "C:\\Users\\Public\\Documents\\Tecan\\Magellan Pro\\mth",
+    "wavelength_methods": {}
+  }
+}

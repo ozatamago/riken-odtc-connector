@@ -133,7 +133,9 @@ class FluentInfiniteReader:
     # ---- Feature から呼ぶ入口
     async def run(self, steps: list[tuple[str, str]], name: str | None, report) -> tuple[str, AscResult | None]:
         started = time.time()
-        await self.backend.run_steps(steps, report)
+        labels = [label for label, _ in steps]
+        what = "Infinite: " + (labels[0] if len(labels) == 1 else next((x for x in labels if "Measure" in x), labels[0]) + f" など {len(labels)} 命令")
+        await self.backend.run_steps(steps, report, what)
         if name is None or self.backend.config.dry_run:
             return "", None
         return await asyncio.to_thread(self._fetch_asc, name, started)
