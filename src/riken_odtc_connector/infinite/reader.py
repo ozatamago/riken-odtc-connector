@@ -87,6 +87,28 @@ class FluentInfiniteReader:
             (f"RemoveLabware {lbl}", remove_labware_xml(lbl)),
         ]
 
+    def worktable_plate_steps(self, labware: str, method: str, name: str) -> list[tuple[str, str]]:
+        """ワークテーブルに登録済みのプレートを名前で運び、測って、元の位置（ベース）へ戻す。
+
+        2026-08-13 に Tecan のサーバの TransferLabware / TransferLabwareBackToBase で通した経路と同じ。
+        ここでは同じ動きを RGA のマクロ（XML）で送る。ベースへ戻すマクロは 10-09 に ODTC_Lid で実機確認済み。
+        """
+        c = self.config
+        return [
+            ("Magellan_Open", magellan_xml("Magellan_Open")),
+            (f"RGA {labware} -> {c.regrip_location}[{c.regrip_site}]",
+             rga_xml(labware, c.regrip_location, str(c.regrip_site), fixed_site=True)),
+            (f"RGA {labware} -> {c.reader_location}[{c.reader_site}]",
+             rga_xml(labware, c.reader_location, str(c.reader_site), fixed_site=True)),
+            ("Magellan_Close", magellan_xml("Magellan_Close")),
+            *self.measure_steps(method, name),
+            ("Magellan_Open", magellan_xml("Magellan_Open")),
+            (f"RGA {labware} -> {c.regrip_location}[{c.regrip_site}]",
+             rga_xml(labware, c.regrip_location, str(c.regrip_site), fixed_site=True)),
+            (f"RGA {labware} -> base", rga_xml(labware, move_to_base=True)),
+            ("Magellan_Close", magellan_xml("Magellan_Close")),
+        ]
+
     # ---- 結果の取り出し
     def _fetch_asc(self, name: str, since: float) -> tuple[str, AscResult]:
         d = self.config.output_dir

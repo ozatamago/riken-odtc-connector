@@ -181,3 +181,25 @@ class FluentPlateHandling(sila.Feature):
         except BackendError as exc:
             raise ReaderOperationFailed(str(exc)) from None
         return _result(method, path, asc)
+
+    @sila.ObservableCommand(errors=[ReaderOperationFailed])
+    async def measure_worktable_plate(self, labware: str, method: str, *, status: sila.Status) -> MeasurementResult:
+        """
+        Bring a plate that is registered on the FluentControl worktable (by its name) into the reader, measure it,
+        and put it back to its base position - all within one FluentControl run.
+
+        Args:
+          Labware: Labware name on the worktable, e.g. "96 Well Flat_Custom[001]".
+          Method: Magellan method file, e.g. "OFML_Abs405.mth". See AbsorbanceReader.Methods.
+
+        Returns:
+          Result: The measured values and the result file.
+        """
+        try:
+            await self.reader.check_method(method)
+            name = self.reader._measure_name()
+            steps = self.reader.worktable_plate_steps(labware, method, name)
+            path, asc = await _with_progress(status, len(steps), lambda report: self.reader.run(steps, name, report))
+        except BackendError as exc:
+            raise ReaderOperationFailed(str(exc)) from None
+        return _result(method, path, asc)

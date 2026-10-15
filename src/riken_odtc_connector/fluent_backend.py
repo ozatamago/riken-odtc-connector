@@ -122,6 +122,8 @@ class FluentBackendConfig(Config):
     """Fluent PC に置いた読み取りスクリプト（windows/odtc_last_sensor_values.ps1）の場所。"""
     channel_timeout_s: float = 300.0
     finish_timeout_s: float = 180.0
+    api_channel: str = "ofml"
+    """OFML_ApiHost が開く窓口の名前。この名前の窓口が開いてから命令を送る。"""
 
 
 class FluentOdtcBackend:
@@ -155,6 +157,15 @@ class FluentOdtcBackend:
             return str(next(iter(sub)))
         finally:
             sub.cancel()
+
+    def _our_channel_open(self) -> bool:
+        c = self._c()
+        try:
+            return c.ExecutionChannelController.Channel.get() == self.config.api_channel and bool(
+                c.ExecutionChannelController.IsAlive.get()
+            )
+        except Exception:  # noqa: BLE001 - 窓口がまだ無いと例外になる
+            return False
 
     def _active_dialogs(self) -> list[str]:
         try:
@@ -209,7 +220,9 @@ class FluentOdtcBackend:
         c.RuntimeController.PrepareMethod(API_HOST_METHOD)
         c.RuntimeController.RunMethod()
         deadline = time.monotonic() + self.config.channel_timeout_s
-        while not c.ExecutionChannelController.IsAlive.get():
+        # UniteLabs コネクタは「最後に開いた窓口」を返す。別のクライアントが開いた窓口の記録が残っていると
+        # IsAlive が最初から True になる（2026-10-15、並行試験の main が残った）ので、窓口の名前でも確かめる
+        while not self._our_channel_open():
             state = self._state()
             if state in STOP_STATES:
                 raise BackendError(f"ランの開始で {state} になりました。{' / '.join(self._active_dialogs())}")

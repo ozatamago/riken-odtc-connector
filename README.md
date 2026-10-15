@@ -98,12 +98,13 @@ uv run connector start --app riken_odtc_connector.infinite:create_app -cfg confi
 | `TrayController` | `OpenTray` / `CloseTray` | トレイの開閉（`Magellan_Open` / `Magellan_Close`） |
 | `AbsorbanceReader` | `Methods`（P） | Fluent PC の `Magellan Pro\mth` にある測定ファイル |
 | | `MeasureLoadedPlate(Method)` | 中にあるプレートを測り、ラベル × 96 ウェルの値を返す |
-| `FluentPlateHandling` | `MeasurePlate(LabwareType, Location, Site, Method)` | RGA で搬入 → 測定 → 搬出を、FluentControl のラン 1 本で行う |
+| `FluentPlateHandling` | `MeasureWorktablePlate(Labware, Method)` | ワークテーブルに登録済みのプレートを名前で運び、測って、元の位置へ戻す。ラン 1 本 |
+| | `MeasurePlate(LabwareType, Location, Site, Method)` | 未登録のプレートを一時的に登録して同じことをする（**実機では未確認**） |
 
 - 搬入・測定・搬出を 1 本のランで済ませるのは、ランを新しく始めると FluentControl がラボウェアの位置を忘れるため（2026-08-13）。
   `MeasurePlate` は、一時的な名前 `SiLA_ReaderPlate[001]` でプレートを登録し、終わったら消す。元の位置は FluentControl の記憶の上で空いていること。
 - 持ち替え位置は平底プレート用の `Regrip_Pos[1]`。**PCR プレートは今の設定ではリーダに入れられない**（2026-10-09）。
 - 結果は Magellan の ASC（latin-1）を SSH で読む。格子形式と 1 行 1 ウェル形式（行順 A1, A2, …）の両方に対応。
 - `Abs600.mth` は 37 °C の保温が有効になっている。
-- **未確認**: RGA のマクロ（XML）でリーダへ運ぶこと（8/13 は Tecan のサーバの `TransferLabware` で運んだ）。
+- **2026-10-15 に実機で確認**: `OpenTray` / `CloseTray`（各 12 秒）、`MeasureWorktablePlate("96 Well Flat_Custom[001]", "OFML_Abs405.mth")`（全体 311 秒、うち測定 254 秒、3 ラベル × 96 ウェル）。RGA のマクロ（XML）でリーダへの搬入・搬出ができた。
 - ODTC のサーバと Infinite のサーバは、それぞれ別に「1 操作ずつ」を守るだけで、互いの操作は知らない。両方から同時に命令を出さないこと。

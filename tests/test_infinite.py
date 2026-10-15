@@ -84,3 +84,19 @@ def test_asc_list_format_is_row_major():
     assert [g["A4"], g["B4"], g["C4"], g["D4"]] == [0.0404, 0.0422, 0.0425, 0.0425]
     assert r.metadata[1] == "Abs600.mth"
     assert not any(math.isnan(v) for v in g.values())
+
+
+def test_worktable_plate_follows_the_20260813_route():
+    reader = FluentInfiniteReader(backend=None, config=InfiniteConfig())
+    steps = reader.worktable_plate_steps("96 Well Flat_Custom[001]", "OFML_Abs405.mth", "riken_x")
+    assert [label for label, _ in steps] == [
+        "Magellan_Open",
+        "RGA 96 Well Flat_Custom[001] -> Regrip_Pos[1]",
+        "RGA 96 Well Flat_Custom[001] -> InfiniteM200_New[1]",
+        "Magellan_Close",
+        "Magellan_Measure OFML_Abs405.mth",
+        "Magellan_Open",
+        "RGA 96 Well Flat_Custom[001] -> Regrip_Pos[1]",
+        "RGA 96 Well Flat_Custom[001] -> base",
+        "Magellan_Close",
+    ]
