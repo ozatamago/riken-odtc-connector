@@ -1,0 +1,12 @@
+<Object Type="Tecan.Core.Scripting.Worktable.Data.RemoveLabwareDataV1">
+<RemoveLabwareDataV1>
+<LabwareName>AssemblyPlate[001]</LabwareName>
+<Data Type="Tecan.Core.Scripting.Programming.ProgrammingStatementBaseDataV1">
+<ProgrammingStatementBaseDataV1>
+<IsBreakpoint>False</IsBreakpoint>
+<IsDisabledForExecution>False</IsDisabledForExecution>
+<LineNumber>0</LineNumber>
+</ProgrammingStatementBaseDataV1>
+</Data>
+</RemoveLabwareDataV1>
+</Object>

@@ -1,0 +1,83 @@
+<ScriptGroup>
+  <Objects>
+    <Object Type="Tecan.Core.Instrument.Devices.LiHa.Scripting.LihaDispenseScriptCommandDataV6">
+                                <LihaDispenseScriptCommandDataV6>
+                                  <OffsetX>0</OffsetX>
+                                  <OffsetY>0</OffsetY>
+                                  <SkipZOnlyMoveToPipettingPosition>False</SkipZOnlyMoveToPipettingPosition>
+                                  <DispenseDelays />
+                                  <Data Type="Tecan.Core.Instrument.Devices.Scripting.Data.LihaPipettingWithVolumesScriptCommandDataV7">
+                                    <LihaPipettingWithVolumesScriptCommandDataV7>
+                                      <Volumes>
+                  <Object Type="System.String">
+                    <string>20</string>
+                  </Object>
+                </Volumes>
+                                      <FlowRates />
+                                      <IsLiquidClassNameByExpressionEnabled>False</IsLiquidClassNameByExpressionEnabled>
+                                      <LiquidClassSelectionMode>
+                                        <LiquidClassSelectionMode>SingleByName</LiquidClassSelectionMode>
+                                      </LiquidClassSelectionMode>
+                                      <LiquidClassNameBySelection>Water Free Multi</LiquidClassNameBySelection>
+                                      <LiquidClassNameByExpression></LiquidClassNameByExpression>
+                                      <LiquidClassNames />
+                                      <Compartment>1</Compartment>
+                                      <Data Type="Tecan.Core.Instrument.Devices.LiHa.Scripting.LihaScriptCommandUsingWellSelectionBaseDataV1">
+                                        <LihaScriptCommandUsingWellSelectionBaseDataV1>
+                                          <SerializedWellIndexes>0;</SerializedWellIndexes>
+                                          <SelectedWellsString>1 * A1</SelectedWellsString>
+                                          <WellOffset>0</WellOffset>
+                                          <Data Type="Tecan.Core.Instrument.Devices.LiHa.Scripting.LiHaScriptCommandUsingTipSelectionBaseDataV1">
+                                            <LiHaScriptCommandUsingTipSelectionBaseDataV1>
+                                              <SerializedTipsIndexes></SerializedTipsIndexes>
+                                              <SelectedTipsIndexes>
+                      <Object Type="System.Int32">
+                        <int>0</int>
+                      </Object>
+                    </SelectedTipsIndexes>
+                                              <TipMask></TipMask>
+                                              <TipOffset>0</TipOffset>
+                                              <TipSpacing>9</TipSpacing>
+                                              <Data Type="Tecan.Core.Instrument.Devices.LiHa.Scripting.LihaScriptCommandDataV1">
+                                                <LihaScriptCommandDataV1>
+                                                  <Data Type="Tecan.Core.Instrument.Helpers.Scripting.ScriptCommandCommonDataV2">
+                                                    <ScriptCommandCommonDataV2>
+                                                      <LabwareName>OFML_TestPlate</LabwareName>
+                                                      <LiquidClassVariablesNames />
+                                                      <LiquidClassVariablesValues />
+                                                      <Data Type="Tecan.Core.Instrument.Helpers.Scripting.DeviceAliasStatementBaseDataV1">
+                                                        <DeviceAliasStatementBaseDataV1>
+                                                          <Alias Type="Tecan.Core.Instrument.DeviceAlias.DeviceAlias">
+                                                            <DeviceAlias>Instrument=1/Device=LIHA:1</DeviceAlias>
+                                                          </Alias>
+                                                          <ID>
+                                                            <AvailableID>USB:TECAN,FLUENT,2411004293/LIHA:1</AvailableID>
+                                                          </ID>
+                                                          <Data Type="Tecan.Core.Scripting.Helpers.ScriptStatementBaseDataV1">
+                                                            <ScriptStatementBaseDataV1>
+                                                              <IsBreakpoint>False</IsBreakpoint>
+                                                              <IsDisabledForExecution>False</IsDisabledForExecution>
+                                                              <GroupLineNumber>0</GroupLineNumber>
+                                                              <LineNumber>6</LineNumber>
+                                                            </ScriptStatementBaseDataV1>
+                                                          </Data>
+                                                        </DeviceAliasStatementBaseDataV1>
+                                                      </Data>
+                                                    </ScriptCommandCommonDataV2>
+                                                  </Data>
+                                                </LihaScriptCommandDataV1>
+                                              </Data>
+                                            </LiHaScriptCommandUsingTipSelectionBaseDataV1>
+                                          </Data>
+                                        </LihaScriptCommandUsingWellSelectionBaseDataV1>
+                                      </Data>
+                                    </LihaPipettingWithVolumesScriptCommandDataV7>
+                                  </Data>
+                                </LihaDispenseScriptCommandDataV6>
+                              </Object>
+  </Objects>
+  <Name></Name>
+  <IsBreakpoint>False</IsBreakpoint>
+  <IsDisabledForExecution>False</IsDisabledForExecution>
+  <LineNumber>0</LineNumber>
+</ScriptGroup>

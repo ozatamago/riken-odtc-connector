@@ -1,0 +1,32 @@
+<Object Type="Tecan.Core.Instrument.Devices.Rga.Scripting.Data.CgaDropFingersScriptCommandDataV1">
+<CgaDropFingersScriptCommandDataV1>
+<UseSourceAsBackPosition>
+<Backs>BackToSource</Backs>
+</UseSourceAsBackPosition>
+<Data Type="Tecan.Core.Instrument.Helpers.Scripting.ScriptCommandCommonDataV2">
+<ScriptCommandCommonDataV2>
+<LabwareName></LabwareName>
+<Data Type="Tecan.Core.Instrument.Helpers.Scripting.DeviceAliasStatementBaseDataV1">
+<DeviceAliasStatementBaseDataV1>
+<Alias Type="Tecan.Core.Instrument.DeviceAlias.DeviceAlias">
+<DeviceAlias>Instrument=1/Device=CGA:1</DeviceAlias>
+</Alias>
+<ID>
+<AvailableID>USB:TECAN,FLUENT,2411004293/CGA:1</AvailableID>
+</ID>
+<Data Type="Tecan.Core.Scripting.Helpers.ScriptStatementBaseDataV1">
+<ScriptStatementBaseDataV1>
+<IsBreakpoint>False</IsBreakpoint>
+<IsDisabledForExecution>False</IsDisabledForExecution>
+<GroupLineNumber>0</GroupLineNumber>
+<LineNumber>0</LineNumber>
+</ScriptStatementBaseDataV1>
+</Data>
+</DeviceAliasStatementBaseDataV1>
+</Data>
+<LiquidClassVariablesNames />
+<LiquidClassVariablesValues />
+</ScriptCommandCommonDataV2>
+</Data>
+</CgaDropFingersScriptCommandDataV1>
+</Object>

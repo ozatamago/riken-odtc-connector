@@ -1,0 +1,17 @@
+<Object Type="Tecan.Core.Scripting.Worktable.Data.AddLabwareDataV1">
+<AddLabwareDataV1>
+<LabwareType>96 Well Skirted PCR_Custom</LabwareType>
+<LabwareLable>TemplatePlate[001]</LabwareLable>
+<Location>BioShake_Q1_Adapter_Site_PCR</Location>
+<Position>1</Position>
+<Rotation>0</Rotation>
+<HasLid>False</HasLid>
+<Data Type="Tecan.Core.Scripting.Programming.ProgrammingStatementBaseDataV1">
+<ProgrammingStatementBaseDataV1>
+<IsBreakpoint>False</IsBreakpoint>
+<IsDisabledForExecution>False</IsDisabledForExecution>
+<LineNumber>0</LineNumber>
+</ProgrammingStatementBaseDataV1>
+</Data>
+</AddLabwareDataV1>
+</Object>

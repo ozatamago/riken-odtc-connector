@@ -1,0 +1,97 @@
+<Object Type="Tecan.Core.Instrument.Devices.LiHa.Scripting.LihaSetClldErrorHandlingScriptCommandDataV4">
+<LihaSetClldErrorHandlingScriptCommandDataV4>
+<LLDErrorActions>
+<Object Type="Tecan.Core.Scripting.Commands.LiHa.LLDErrorAction">
+<LLDErrorAction>
+<ErrorCode>Liquid Level Detection Errors (Aspirate)</ErrorCode>
+<VariableName>ErrFailedCLLD</VariableName>
+<Action>AspirateAvailable</Action>
+</LLDErrorAction>
+</Object>
+</LLDErrorActions>
+<DispenseLLDErrorActions>
+<Object Type="Tecan.Core.Scripting.Commands.LiHa.DispenseLLDErrorAction">
+<DispenseLLDErrorAction>
+<ErrorCode>Liquid Level Detection Errors (Contact Dispense)</ErrorCode>
+<VariableName>ErrFailedCLLD</VariableName>
+<Action>IgnoreAndContinue</Action>
+</DispenseLLDErrorAction>
+</Object>
+</DispenseLLDErrorActions>
+<SupervisionErrorActions>
+<Object Type="Tecan.Core.Scripting.Commands.LiHa.SupervisionErrorAction">
+<SupervisionErrorAction>
+<ErrorCode>Aspiration supervision failed</ErrorCode>
+<VariableName>ErrSupervisionFailed</VariableName>
+<Action>UserPrompt</Action>
+</SupervisionErrorAction>
+</Object>
+</SupervisionErrorActions>
+<RetractSupervisionErrorActions>
+<Object Type="Tecan.Core.Scripting.Commands.LiHa.RetractSupervisionErrorAction">
+<RetractSupervisionErrorAction>
+<ErrorCode>Retract supervision failed</ErrorCode>
+<VariableName>ErrLiquidExitNotFound</VariableName>
+<Action>UserPrompt</Action>
+</RetractSupervisionErrorAction>
+</Object>
+</RetractSupervisionErrorActions>
+<PressureOutOfRangeAspirateErrorActions>
+<Object Type="Tecan.Core.Scripting.Commands.LiHa.PressureOutOfRangeAspirateErrorAction">
+<PressureOutOfRangeAspirateErrorAction>
+<ErrorCode>Pressure out of range errors during aspirate</ErrorCode>
+<VariableName>ErrPressureOutOfRange</VariableName>
+<Action>UserPrompt</Action>
+<SecondAction>UserPrompt</SecondAction>
+</PressureOutOfRangeAspirateErrorAction>
+</Object>
+</PressureOutOfRangeAspirateErrorActions>
+<PressureOutOfRangeDispenseErrorActions>
+<Object Type="Tecan.Core.Scripting.Commands.LiHa.PressureOutOfRangeDispenseErrorAction">
+<PressureOutOfRangeDispenseErrorAction>
+<ErrorCode>Pressure out of range errors during dispense</ErrorCode>
+<VariableName>ErrPressureOutOfRange</VariableName>
+<Action>UserPrompt</Action>
+</PressureOutOfRangeDispenseErrorAction>
+</Object>
+</PressureOutOfRangeDispenseErrorActions>
+<PmpAspirationErrorActions>
+<Object Type="Tecan.Core.Scripting.Commands.LiHa.PmpAspirateErrorAction">
+<PmpAspirateErrorAction>
+<ErrorCode>PMP aspiration errors</ErrorCode>
+<VariableName>ErrPmpAspiration</VariableName>
+<Action>UserPrompt</Action>
+</PmpAspirateErrorAction>
+</Object>
+</PmpAspirationErrorActions>
+<Data Type="Tecan.Core.Instrument.Devices.LiHa.Scripting.LihaScriptCommandDataV1">
+<LihaScriptCommandDataV1>
+<Data Type="Tecan.Core.Instrument.Helpers.Scripting.ScriptCommandCommonDataV2">
+<ScriptCommandCommonDataV2>
+<LabwareName></LabwareName>
+<LiquidClassVariablesNames />
+<LiquidClassVariablesValues />
+<Data Type="Tecan.Core.Instrument.Helpers.Scripting.DeviceAliasStatementBaseDataV1">
+<DeviceAliasStatementBaseDataV1>
+<Alias Type="Tecan.Core.Instrument.DeviceAlias.DeviceAlias">
+<DeviceAlias>Instrument=1/Device=LIHA:1</DeviceAlias>
+</Alias>
+<ID>
+<AvailableID>USB:TECAN,FLUENT,2411004293/LIHA:1</AvailableID>
+</ID>
+<Data Type="Tecan.Core.Scripting.Helpers.ScriptStatementBaseDataV1">
+<ScriptStatementBaseDataV1>
+<IsBreakpoint>False</IsBreakpoint>
+<IsDisabledForExecution>False</IsDisabledForExecution>
+<GroupLineNumber>0</GroupLineNumber>
+<LineNumber>0</LineNumber>
+</ScriptStatementBaseDataV1>
+</Data>
+</DeviceAliasStatementBaseDataV1>
+</Data>
+</ScriptCommandCommonDataV2>
+</Data>
+</LihaScriptCommandDataV1>
+</Data>
+</LihaSetClldErrorHandlingScriptCommandDataV4>
+</Object>
