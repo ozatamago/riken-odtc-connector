@@ -7,7 +7,11 @@ ExecutionSettings の値の意味は、ドライバの資料と GUI スクリプ
 - InhecoIncubator_SetTemp    "<温度>,0.0,0"。2 番目と 3 番目の意味は不明（スクリプトはいつも 0.0,0）。Sub_Cleanup は 25 に戻す
 - inhecoMTC_SetTemperature   "<スロット>,<加熱冷却を有効にするか>,<温度>,0"。設定画面の欄は Slot / Enable Heater / Temperature。
                              False で切る（03 の最後と 06）。4 番目の意味は不明（いつも 0）
-- Incubator1_SetTemperature  "0,<温度>"。1 番目の意味は不明（いつも 0）。05 の最後で 25 に戻す
+- Incubator1_SetTemperature  "0,<温度>"。05 の最後で 25 に戻す。1 番目の 0 は「全部の位置」と見られる
+                             （2026-10-15、1 回送るとドライバは 6 か所それぞれに設定したと記録した）
+
+2026-10-15 に実機で確認: BioShake 25 °C → TempOff、CPLC スロット 1 25 °C → 切る、Inheco 25 °C、Incubator1 25 °C。
+どれも 8.6〜10.1 秒で返り（温度に達するまでは待たない）、ドライバは SC_ERROR_NONE を記録した。
 
 設定できる温度の範囲は、このコネクタが安全のために絞ったもの（装置の仕様ではない）。
 """

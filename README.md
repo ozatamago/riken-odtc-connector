@@ -33,6 +33,19 @@ UniteLabs コネクタの「最後に開いた窓口」を通して他人のラ�
 - **2026-10-15 に UniteLabs App から実機で確認**: `Nest7mm_Pos[6]` → `Regrip_Pos[1]` → 別のランで `Nest7mm_Pos[6]` へ戻す。
 - UniteLabs App で文字列の値を入れるときは、引用符を付けない（付けると引用符まで値になる）。
 
+### 温度制御つきの装置（このサーバだけ）
+
+| Feature | Command | 範囲（コネクタが絞ったもの） |
+|---|---|---|
+| `BioShakeController` | `SetTemperature(Temperature)` / `TemperatureOff` | 4〜70 °C |
+| `ShakingIncubatorController`（Inheco Incubator Shaker DWP） | `SetTemperature(Temperature)` | 20〜60 °C |
+| `TemperaturePositionController`（CPLC の 3 か所、inhecoMTC） | `SetTemperature(Slot, Temperature)` / `TurnOff(Slot)` | 4〜70 °C、スロット 1〜3 |
+| `Incubator1Controller`（6 Nest Incubator Shaking） | `SetTemperature(Temperature)`（全部の位置） | 20〜50 °C |
+
+- 命令を送った時点で返る（温度に達するまで待たない）。2026-10-15 に実機で 1 つ約 9 秒、ドライバの記録は SC_ERROR_NONE。
+- 引数の意味の根拠と、意味の分からない値（GUI スクリプトと同じ値に固定）は `temperature_devices.py` の先頭に書いた。
+- Tecan の片付け（Sub_Cleanup）は、Inheco のインキュベータと Incubator1 を 25 °C に戻し、BioShake は TempOff、CPLC は切る。
+
 GUI スクリプトから取り出した装置のマクロの雛形（83 個）は `tests/fixtures/gui_macros/`（出どころは `index.tsv`、取り出しは `tools/extract_gui_macros.py`）。
 
 ---
