@@ -14,3 +14,5 @@ config.json
 config.dryrun.json
 logs/
 .pytest_cache/
+config.infinite.json
+config.infinite.dryrun.json

@@ -176,12 +176,21 @@ class FluentOdtcBackend:
         raise BackendError(f"{what}が {timeout:.0f} 秒以内に終わりませんでした（状態 {self._state()}）")
 
     def _run_macro(self, name: str, settings: str | None, report) -> float:
-        xml = odtc_macro_xml(name, settings)
+        return self._run_steps([(name, odtc_macro_xml(name, settings))], report)[0]
+
+    def _run_steps(self, steps: list[tuple[str, str]], report) -> list[float]:
+        """XML の命令を、FluentControl のラン 1 本の中で順に送る。各命令にかかった秒数を返す。
+
+        途中の命令が失敗したら、残りは送らずにランを終わらせる。report には、各命令の前に
+        その label が渡る（進捗の表示用）。
+        """
         if self.config.dry_run:
-            logger.info("dry-run: %s を送るところでした\n%s", name, xml)
-            report("dry-run")
+            for label, xml in steps:
+                logger.info("dry-run: %s を送るところでした\n%s", label, xml)
+                report("dry-run")
+                report(label)
             time.sleep(self.config.dry_run_seconds)
-            return 0.0
+            return [0.0 for _ in steps]
 
         c = self._c()
         if not c.FluentController.IsAttached.get():
@@ -211,11 +220,13 @@ class FluentOdtcBackend:
             report(f"waiting channel ({state})")
             time.sleep(2)
 
-        t0 = time.monotonic()
+        durations: list[float] = []
         try:
-            report(name)
-            c.ExecutionChannelController.ExecuteCommand(xml)
-            elapsed = time.monotonic() - t0
+            for label, xml in steps:
+                report(label)
+                t0 = time.monotonic()
+                c.ExecutionChannelController.ExecuteCommand(xml)
+                durations.append(time.monotonic() - t0)
         finally:
             # 失敗しても必ずランを終わらせ、EditMode に戻す
             try:
@@ -225,7 +236,7 @@ class FluentOdtcBackend:
                 self._wait(lambda s: s in IDLE_STATES, self.config.finish_timeout_s, "ランの終了", report)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("ランの後始末で失敗: %s", exc)
-        return elapsed
+        return durations
 
     # ---- Feature から呼ぶ入口
     async def run_macro(self, name: str, settings: str | None = None, report=lambda _: None) -> float:
@@ -234,6 +245,13 @@ class FluentOdtcBackend:
             raise BackendError("別の ODTC 操作が実行中です")
         async with self._lock:
             return await asyncio.to_thread(self._guarded, self._run_macro, name, settings, report)
+
+    async def run_steps(self, steps: list[tuple[str, str]], report=lambda _: None) -> list[float]:
+        """複数の XML の命令を、ラン 1 本の中で順に送る（搬入・測定・搬出を 1 本で済ませる用）。"""
+        if self._lock.locked():
+            raise BackendError("別の操作が実行中です")
+        async with self._lock:
+            return await asyncio.to_thread(self._guarded, self._run_steps, steps, report)
 
     # ---- 温度（ReadActualTemperature の結果は FluentControl に返らず、ドライバのログにだけ残る）
     def _ssh_ps(self, args: str) -> str:

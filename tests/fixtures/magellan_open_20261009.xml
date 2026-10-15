@@ -1,0 +1,13 @@
+<ScriptGroup>
+  <Objects>
+    <Object Type="Tecan.VisionX.ApplicationDriver.LegacyDriverMacro">
+      <LegacyDriverMacro Version="1" Name="Magellan_Open" ModuleName="Magellan" ExecutionTime="PT2S" IsBreakpoint="false" IsDisabledForExecution="false" LineNumber="0">
+        <ExecutionSettings />
+      </LegacyDriverMacro>
+    </Object>
+  </Objects>
+  <Name></Name>
+  <IsBreakpoint>False</IsBreakpoint>
+  <IsDisabledForExecution>False</IsDisabledForExecution>
+  <LineNumber>0</LineNumber>
+</ScriptGroup>

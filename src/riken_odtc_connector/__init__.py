@@ -1,43 +1,18 @@
-"""SiLA 2 connector for the Inheco ODTC 96 on the RIKEN BDR Fluent 780 (driven through FluentControl)."""
+"""SiLA 2 connectors for the RIKEN BDR Fluent 780, driven through FluentControl.
 
-import collections.abc
-import dataclasses
+    ODTC:     uv run connector start --app riken_odtc_connector:create_app -cfg config.json
+    Infinite: uv run connector start --app riken_odtc_connector.infinite:create_app -cfg config.infinite.json
 
-from unitelabs.cdk import Connector, ConnectorBaseConfig, SiLAServerConfig
-
-from .door_controller import DoorController
-from .fluent_backend import FluentBackendConfig, FluentOdtcBackend
-from .method_controller import MethodController
-from .status_controller import StatusController
-from .temperature_controller import TemperatureController
+UniteLabs CDK は、プロセス内に ConnectorBaseConfig の子クラスが 1 つだけあることを前提にする。
+ODTC の設定クラスは、ODTC のサーバを起動するときだけ読み込む（Infinite のサーバと同居させないため）。
+"""
 
 __version__ = "0.1.0"
 
 
-@dataclasses.dataclass
-class OdtcConnectorConfig(ConnectorBaseConfig):
-    """Configuration for the ODTC connector."""
+def __getattr__(name):
+    if name in ("create_app", "OdtcConnectorConfig"):
+        from . import odtc_app
 
-    sila_server: SiLAServerConfig = dataclasses.field(
-        default_factory=lambda: SiLAServerConfig(
-            name="Inheco ODTC (Fluent 780)",
-            type="ThermalCycler",
-            description="Control the Inheco ODTC 96 thermal cycler integrated in the Tecan Fluent 780.",
-            version=__version__,
-            vendor_url="https://www.riken.jp/",
-            port=50061,
-        )
-    )
-    fluent: FluentBackendConfig = dataclasses.field(default_factory=FluentBackendConfig)
-
-
-async def create_app(config: OdtcConnectorConfig) -> collections.abc.AsyncGenerator[Connector, None]:
-    """Create the connector application."""
-
-    app = Connector(config)
-    backend = FluentOdtcBackend(config.fluent)  # 扉もメソッドも同じ裏側を使い、同時には 1 操作だけ
-    app.register(DoorController(backend))
-    app.register(MethodController(backend))
-    app.register(TemperatureController(backend))
-    app.register(StatusController(backend))
-    yield app
+        return getattr(odtc_app, name)
+    raise AttributeError(name)

@@ -1,0 +1,13 @@
+<ScriptGroup>
+  <Objects>
+    <Object Type="Tecan.VisionX.ApplicationDriver.LegacyDriverMacro">
+      <LegacyDriverMacro Version="1" Name="Magellan_Measure" ModuleName="Magellan" ExecutionTime="PT2S" IsBreakpoint="false" IsDisabledForExecution="false" LineNumber="0">
+        <ExecutionSettings>C:\Users\Public\Documents\Tecan\Magellan Pro\asc\qpcr_water_measure-pcr_261009_175940,OFML_ColorMix3.mth,0,0,0</ExecutionSettings>
+      </LegacyDriverMacro>
+    </Object>
+  </Objects>
+  <Name></Name>
+  <IsBreakpoint>False</IsBreakpoint>
+  <IsDisabledForExecution>False</IsDisabledForExecution>
+  <LineNumber>0</LineNumber>
+</ScriptGroup>

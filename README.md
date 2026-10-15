@@ -82,3 +82,28 @@ uv run pytest
 
 装置にも Fluent にもつながない。XML が実機で成功したものと一致すること、危ないマクロを断ること、メソッド一覧の読み込みと
 PreMethod の対応を確かめる。
+
+## Infinite 200 PRO（Fluent 780 の中のリーダ）
+
+同じパッケージに、Infinite 200 PRO 用の別のサーバ（「Tecan Infinite 200 PRO (Fluent 780)」、ポート 50063）がある。
+裏側（FluentControl のラン、UniteLabs コネクタ経由）は ODTC と共通。
+
+```bash
+cp config.infinite.example.json config.infinite.json   # 実機で動かすときは fluent.dry_run を false に
+uv run connector start --app riken_odtc_connector.infinite:create_app -cfg config.infinite.json
+```
+
+| Feature | Command / Property | 中身 |
+|---|---|---|
+| `TrayController` | `OpenTray` / `CloseTray` | トレイの開閉（`Magellan_Open` / `Magellan_Close`） |
+| `AbsorbanceReader` | `Methods`（P） | Fluent PC の `Magellan Pro\mth` にある測定ファイル |
+| | `MeasureLoadedPlate(Method)` | 中にあるプレートを測り、ラベル × 96 ウェルの値を返す |
+| `FluentPlateHandling` | `MeasurePlate(LabwareType, Location, Site, Method)` | RGA で搬入 → 測定 → 搬出を、FluentControl のラン 1 本で行う |
+
+- 搬入・測定・搬出を 1 本のランで済ませるのは、ランを新しく始めると FluentControl がラボウェアの位置を忘れるため（2026-08-13）。
+  `MeasurePlate` は、一時的な名前 `SiLA_ReaderPlate[001]` でプレートを登録し、終わったら消す。元の位置は FluentControl の記憶の上で空いていること。
+- 持ち替え位置は平底プレート用の `Regrip_Pos[1]`。**PCR プレートは今の設定ではリーダに入れられない**（2026-10-09）。
+- 結果は Magellan の ASC（latin-1）を SSH で読む。格子形式と 1 行 1 ウェル形式（行順 A1, A2, …）の両方に対応。
+- `Abs600.mth` は 37 °C の保温が有効になっている。
+- **未確認**: RGA のマクロ（XML）でリーダへ運ぶこと（8/13 は Tecan のサーバの `TransferLabware` で運んだ）。
+- ODTC のサーバと Infinite のサーバは、それぞれ別に「1 操作ずつ」を守るだけで、互いの操作は知らない。両方から同時に命令を出さないこと。

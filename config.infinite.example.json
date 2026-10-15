@@ -1,0 +1,48 @@
+{
+  "sila_server": {
+    "hostname": "10.5.1.213",
+    "port": 50063,
+    "tls": false,
+    "require_client_auth": false,
+    "root_certificates": null,
+    "certificate_chain": null,
+    "private_key": null,
+    "options": {},
+    "uuid": "9b4d2c1e-6a7f-4e3b-a8d5-0c1e2f3a4b5c",
+    "name": "Tecan Infinite 200 PRO (Fluent 780)",
+    "type": "PlateReader",
+    "description": "Control the Tecan Infinite 200 PRO plate reader integrated in the Tecan Fluent 780.",
+    "version": "0.1",
+    "vendor_url": "https://www.riken.jp/",
+    "default_lifetime": 3600.0
+  },
+  "cloud_servers": {
+    "enabled": true,
+    "endpoints": []
+  },
+  "discovery": {
+    "ip_version": "ipv4",
+    "network_interfaces": null,
+    "certificate": null
+  },
+  "logging": null,
+  "fluent": {
+    "host": "10.5.1.156",
+    "port": 51822,
+    "unitelabs_uuid": "6f944f98-9763-4b26-9467-681cf42c9e18",
+    "dry_run": true,
+    "dry_run_seconds": 0.0,
+    "ssh_target": "Tecan@10.5.1.156",
+    "sensor_script": "C:\\Users\\Tecan\\OFML_screen\\odtc_last_sensor_values.ps1",
+    "channel_timeout_s": 300.0,
+    "finish_timeout_s": 180.0
+  },
+  "infinite": {
+    "reader_location": "InfiniteM200_New",
+    "reader_site": 1,
+    "regrip_location": "Regrip_Pos",
+    "regrip_site": 1,
+    "output_dir": "C:\\Users\\Public\\Documents\\Tecan\\Magellan Pro\\asc",
+    "method_dir": "C:\\Users\\Public\\Documents\\Tecan\\Magellan Pro\\mth"
+  }
+}
