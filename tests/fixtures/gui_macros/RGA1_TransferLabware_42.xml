@@ -1,0 +1,5 @@
+<Object Type="Tecan.VisionX.ApplicationDriver.ApplicationDriverBase.ApplicationDriverMacro">
+<ApplicationDriverMacro Version="1" Name="RGA1_TransferLabware" ModuleName="RGA 1" ExecutionTime="PT2S" IsBreakpoint="false" IsDisabledForExecution="false" LineNumber="0">
+<ExecutionSettings>&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.datacontract.org/2004/07/Tecan.VisionX.Drivers.RobotDriverBase"&amp;gt;&amp;lt;FixedSite&amp;gt;true&amp;lt;/FixedSite&amp;gt;&amp;lt;Labware&amp;gt;PrimerPlate_Lid[LP]&amp;lt;/Labware&amp;gt;&amp;lt;Location&amp;gt;HotelMP_Pos&amp;lt;/Location&amp;gt;&amp;lt;MoveToBase&amp;gt;false&amp;lt;/MoveToBase&amp;gt;&amp;lt;OnTheFlyTool&amp;gt;&amp;lt;/OnTheFlyTool&amp;gt;&amp;lt;Site&amp;gt;LP+1&amp;lt;/Site&amp;gt;&amp;lt;UseOnTheFlyTool&amp;gt;false&amp;lt;/UseOnTheFlyTool&amp;gt;&amp;lt;/TransferLabwareCommandParameters&amp;gt;</ExecutionSettings>
+</ApplicationDriverMacro>
+</Object>

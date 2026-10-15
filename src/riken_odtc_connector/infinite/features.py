@@ -183,9 +183,11 @@ class FluentPlateHandling(sila.Feature):
     The plate must not have a lid. The source site must be free in FluentControl's worktable memory.
     """
 
-    def __init__(self, reader: FluentInfiniteReader):
+    def __init__(self, reader: FluentInfiniteReader, tracker=None):
         super().__init__(originator="jp.riken.bdr", category="platereader", version="1.0")
         self.reader = reader
+        self.tracker = tracker
+        """RgaController と同じ LabwareTracker（あれば）。元の位置にないプレートを、元の位置から運ぼうとしないため。"""
 
     @sila.ObservableCommand(errors=[ReaderOperationFailed])
     async def measure_plate(
@@ -226,6 +228,11 @@ class FluentPlateHandling(sila.Feature):
           Result: The measured values and the result file.
         """
         try:
+            if self.tracker is not None and labware in self.tracker.positions:
+                loc, site = self.tracker.where(labware)
+                raise BackendError(
+                    f"{labware} は今 {loc}[{site}] にあります（RgaController で動かした）。先に ReturnLabware で元の位置へ戻してください"
+                )
             await self.reader.check_method(method)
             name = self.reader._measure_name()
             steps = self.reader.worktable_plate_steps(labware, method, name)

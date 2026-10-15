@@ -1,0 +1,5 @@
+<Object Type="Tecan.VisionX.ApplicationDriver.LegacyDriverMacro">
+<LegacyDriverMacro Version="1" Name="Incubator1_SetTemperature" ModuleName="Incubator1" ExecutionTime="PT2S" IsBreakpoint="false" IsDisabledForExecution="false" LineNumber="0">
+<ExecutionSettings>0,37</ExecutionSettings>
+</LegacyDriverMacro>
+</Object>

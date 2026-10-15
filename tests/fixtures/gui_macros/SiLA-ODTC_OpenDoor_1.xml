@@ -1,0 +1,5 @@
+<Object Type="Tecan.VisionX.ApplicationDriver.LegacyDriverMacro">
+<LegacyDriverMacro Version="1" Name="SiLA-ODTC_OpenDoor" ModuleName="SiLA-ODTC" ExecutionTime="PT2S" IsBreakpoint="false" IsDisabledForExecution="false" LineNumber="0">
+<ExecutionSettings />
+</LegacyDriverMacro>
+</Object>

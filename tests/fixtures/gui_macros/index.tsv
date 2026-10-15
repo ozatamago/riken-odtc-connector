@@ -1,0 +1,84 @@
+file	module	macro	settings	source	line
+Incubator1_StopShaker_1.xml	Incubator1	Incubator1_StopShaker		Sub_KineticMeasurement	1
+RGA1_TransferLabware_1.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	Sub_KineticMeasurement	2
+Incubator1_CloseDoor_1.xml	Incubator1	Incubator1_CloseDoor		Sub_KineticMeasurement	3
+Incubator1_StartShaker_1.xml	Incubator1	Incubator1_StartShaker	5	Sub_KineticMeasurement	4
+RGA1_TransferLabware_2.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	Sub_KineticMeasurement	5
+Magellan_Open_1.xml	Magellan	Magellan_Open		Sub_KineticMeasurement	6
+RGA1_TransferLabware_3.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	Sub_KineticMeasurement	7
+Magellan_Close_1.xml	Magellan	Magellan_Close		Sub_KineticMeasurement	8
+Magellan_Measure_1.xml	Magellan	Magellan_Measure	C:\FluentData\00_A600_Result\&amp;lt;YYMMDD-NNN&amp;gt;,Abs600.mth,0,0,0	Sub_KineticMeasurement	9
+RGA1_TransferLabware_4.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	Sub_KineticMeasurement	13
+RGA1_TransferLabware_5.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	Sub_KineticMeasurement	15
+BioShake_ElmUnlock_1.xml	BioShake	BioShake_ElmUnlock		06_Plasmid_Extraction_Ver1_0	52
+InhecoIncubator_Close_1.xml	InhecoIncubator	InhecoIncubator_Close		06_Plasmid_Extraction_Ver1_0	53
+SiLA-ODTC_CloseDoor_1.xml	SiLA-ODTC	SiLA-ODTC_CloseDoor		06_Plasmid_Extraction_Ver1_0	55
+RGA1_TransferLabware_6.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	06_Plasmid_Extraction_Ver1_0	77
+BioShake_ElmLock_1.xml	BioShake	BioShake_ElmLock		06_Plasmid_Extraction_Ver1_0	78
+BioShake_ShakeOn_1.xml	BioShake	BioShake_ShakeOn		06_Plasmid_Extraction_Ver1_0	79
+BioShake_ShakeOff_1.xml	BioShake	BioShake_ShakeOff		06_Plasmid_Extraction_Ver1_0	81
+RGA1_TransferLabware_7.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	06_Plasmid_Extraction_Ver1_0	83
+RGA1_TransferLabware_8.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	06_Plasmid_Extraction_Ver1_0	142
+RGA1_TransferLabware_9.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	06_Plasmid_Extraction_Ver1_0	194
+RGA1_TransferLabware_10.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	06_Plasmid_Extraction_Ver1_0	208
+RGA1_TransferLabware_11.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	06_Plasmid_Extraction_Ver1_0	221
+RGA1_TransferLabware_12.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	06_Plasmid_Extraction_Ver1_0	261
+inhecoMTC_SetTemperature_1.xml	inhecoMTC	inhecoMTC_SetTemperature	3,True,65.0,0	06_Plasmid_Extraction_Ver1_0	309
+RGA1_TransferLabware_13.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	06_Plasmid_Extraction_Ver1_0	311
+inhecoMTC_SetTemperature_2.xml	inhecoMTC	inhecoMTC_SetTemperature	3,False,65.0,0	06_Plasmid_Extraction_Ver1_0	315
+RGA1_TransferLabware_14.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	06_Plasmid_Extraction_Ver1_0	343
+RGA1_TransferLabware_15.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	06_Plasmid_Extraction_Ver1_0	344
+RGA1_TransferLabware_16.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	06_Plasmid_Extraction_Ver1_0	348
+inhecoMTC_SetTemperature_3.xml	inhecoMTC	inhecoMTC_SetTemperature	1,True,4.0,0	03_Transformation_Ver1_0	21
+inhecoMTC_SetTemperature_4.xml	inhecoMTC	inhecoMTC_SetTemperature	2,True,37.0,0	03_Transformation_Ver1_0	22
+inhecoMTC_SetTemperature_5.xml	inhecoMTC	inhecoMTC_SetTemperature	3,True,37.0,0	03_Transformation_Ver1_0	23
+BioShake_SetTemp_1.xml	BioShake	BioShake_SetTemp	4	03_Transformation_Ver1_0	24
+InhecoIncubator_SetTemp_1.xml	InhecoIncubator	InhecoIncubator_SetTemp	37,0.0,0	03_Transformation_Ver1_0	25
+RGA1_TransferLabware_17.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	03_Transformation_Ver1_0	33
+RGA1_TransferLabware_18.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	03_Transformation_Ver1_0	45
+RGA1_TransferLabware_19.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	03_Transformation_Ver1_0	51
+RGA1_TransferLabware_20.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	03_Transformation_Ver1_0	56
+RGA1_TransferLabware_21.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	03_Transformation_Ver1_0	57
+RGA1_TransferLabware_22.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	03_Transformation_Ver1_0	64
+RGA1_TransferLabware_23.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	03_Transformation_Ver1_0	76
+inhecoMTC_SetTemperature_6.xml	inhecoMTC	inhecoMTC_SetTemperature	1,False,37.5,0	03_Transformation_Ver1_0	77
+inhecoMTC_SetTemperature_7.xml	inhecoMTC	inhecoMTC_SetTemperature	2,False,37.5,0	03_Transformation_Ver1_0	78
+inhecoMTC_SetTemperature_8.xml	inhecoMTC	inhecoMTC_SetTemperature	3,False,37.5,0	03_Transformation_Ver1_0	79
+RGA1_TransferLabware_24.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	03_Transformation_Ver1_0	81
+InhecoIncubator_ShakeOn_1.xml	InhecoIncubator	InhecoIncubator_ShakeOn	14,1.0,14,1.0,180	03_Transformation_Ver1_0	83
+InhecoIncubator_ShakeOff_1.xml	InhecoIncubator	InhecoIncubator_ShakeOff		03_Transformation_Ver1_0	85
+BioShake_ShakeOn_2.xml	BioShake	BioShake_ShakeOn	~SpeedShake~,5	Sub_Skake	2
+RGA1_TransferLabware_25.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	07_Golden_Gate_Assembly_Ver1_0	49
+RGA1_TransferLabware_26.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	07_Golden_Gate_Assembly_Ver1_0	72
+RGA1_TransferLabware_27.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	07_Golden_Gate_Assembly_Ver1_0	79
+RGA1_TransferLabware_28.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	07_Golden_Gate_Assembly_Ver1_0	112
+RGA1_TransferLabware_29.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	07_Golden_Gate_Assembly_Ver1_0	115
+RGA1_TransferLabware_30.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	07_Golden_Gate_Assembly_Ver1_0	118
+RGA1_TransferLabware_31.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	07_Golden_Gate_Assembly_Ver1_0	124
+Incubator1_SetTemperature_1.xml	Incubator1	Incubator1_SetTemperature	0,37	05_Subculture_and_OD_measure_Ver1_0	36
+RGA1_TransferLabware_32.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	05_Subculture_and_OD_measure_Ver1_0	47
+RGA1_TransferLabware_33.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	05_Subculture_and_OD_measure_Ver1_0	49
+RGA1_TransferLabware_34.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	05_Subculture_and_OD_measure_Ver1_0	57
+RGA1_TransferLabware_35.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	05_Subculture_and_OD_measure_Ver1_0	61
+RGA1_TransferLabware_36.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	05_Subculture_and_OD_measure_Ver1_0	62
+RGA1_TransferLabware_37.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	05_Subculture_and_OD_measure_Ver1_0	87
+Incubator1_SetTemperature_2.xml	Incubator1	Incubator1_SetTemperature	0,25	05_Subculture_and_OD_measure_Ver1_0	89
+SiLA-ODTC_OpenDoor_1.xml	SiLA-ODTC	SiLA-ODTC_OpenDoor		Sub_ODTC	1
+RGA1_TransferLabware_38.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	Sub_ODTC	2
+RGA1_TransferLabware_39.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	Sub_ODTC	18
+RGA1_TransferLabware_40.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	Sub_ODTC	20
+BioShake_SetTemp_2.xml	BioShake	BioShake_SetTemp	4.0	02_PCR_Ver1_0	40
+RGA1_TransferLabware_41.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	02_PCR_Ver1_0	50
+RGA1_TransferLabware_42.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	02_PCR_Ver1_0	74
+RGA1_TransferLabware_43.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	02_PCR_Ver1_0	78
+RGA1_TransferLabware_44.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	02_PCR_Ver1_0	82
+RGA1_TransferLabware_45.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	02_PCR_Ver1_0	85
+BioShake_TempOff_1.xml	BioShake	BioShake_TempOff		02_PCR_Ver1_0	126
+RGA1_TransferLabware_46.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	01_SolutionPrimer_Ver1_0	27
+RGA1_TransferLabware_47.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	01_SolutionPrimer_Ver1_0	36
+RGA1_TransferLabware_48.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	01_SolutionPrimer_Ver1_0	38
+RGA1_TransferLabware_49.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	01_SolutionPrimer_Ver1_0	41
+RGA1_TransferLabware_50.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	04_Selection_Medium_Preparation_Ver1_0	45
+RGA1_TransferLabware_51.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	SUB_Heat shock	5
+RGA1_TransferLabware_52.xml	RGA 1	RGA1_TransferLabware	&amp;lt;TransferLabwareCommandParameters xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.da...	SUB_Heat shock	9
+InhecoIncubator_SetTemp_2.xml	InhecoIncubator	InhecoIncubator_SetTemp	25,0.0,0	Sub_Cleanup	5

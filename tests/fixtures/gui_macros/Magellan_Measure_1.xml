@@ -1,0 +1,6 @@
+<Object Type="Tecan.VisionX.ApplicationDriver.LegacyDriverMacro">
+<LegacyDriverMacro Version="1" Name="Magellan_Measure" ModuleName="Magellan" ExecutionTime="PT16M59S" IsBreakpoint="false" IsDisabledForExecution="false" LineNumber="0">
+<ExecutionSettings>C:\FluentData\00_A600_Result\&amp;lt;YYMMDD-NNN&amp;gt;,Abs600.mth,0,0,0</ExecutionSettings>
+<ObjectParameter>TargetPlate</ObjectParameter>
+</LegacyDriverMacro>
+</Object>

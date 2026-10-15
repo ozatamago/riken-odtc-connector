@@ -1,0 +1,5 @@
+<Object Type="Tecan.VisionX.ApplicationDriver.LegacyDriverMacro">
+<LegacyDriverMacro Version="1" Name="inhecoMTC_SetTemperature" ModuleName="inhecoMTC" ExecutionTime="PT2S" IsBreakpoint="false" IsDisabledForExecution="false" LineNumber="0">
+<ExecutionSettings>2,False,37.5,0</ExecutionSettings>
+</LegacyDriverMacro>
+</Object>

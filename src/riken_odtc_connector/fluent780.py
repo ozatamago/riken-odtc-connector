@@ -20,6 +20,7 @@ from .fluent_backend import FluentBackendConfig, FluentOdtcBackend
 from .infinite.features import AbsorbanceReader, FluentPlateHandling, TrayController
 from .infinite.reader import FluentInfiniteReader, InfiniteConfig
 from .method_controller import MethodController
+from .rga_controller import LabwareTracker, PlateTransferConfig, RgaController
 from .status_controller import StatusController
 from .temperature_controller import TemperatureController
 
@@ -36,7 +37,8 @@ class Fluent780ConnectorConfig(ConnectorBaseConfig):
             type="Workcell",
             description=(
                 "Devices of the RIKEN BDR Tecan Fluent 780, driven through FluentControl: Inheco ODTC 96 "
-                "(door, methods, temperatures) and Tecan Infinite 200 PRO (tray, absorbance, plate handling)."
+                "(door, methods, temperatures), Tecan Infinite 200 PRO (tray, absorbance, plate handling) and the RGA plate "
+                "gripper (moving registered labware)."
             ),
             version=__version__,
             vendor_url="https://www.riken.jp/",
@@ -45,13 +47,17 @@ class Fluent780ConnectorConfig(ConnectorBaseConfig):
     )
     fluent: FluentBackendConfig = dataclasses.field(default_factory=FluentBackendConfig)
     infinite: InfiniteConfig = dataclasses.field(default_factory=InfiniteConfig)
+    plates: PlateTransferConfig = dataclasses.field(default_factory=PlateTransferConfig)
 
 
 def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
     """全装置の Feature を、1 つの裏側を共有する形で作る。"""
     backend = FluentOdtcBackend(config.fluent)
     reader = FluentInfiniteReader(backend, config.infinite)
+    tracker = LabwareTracker(config.plates)
     return [
+        # RGA
+        RgaController(backend, tracker),
         # ODTC
         DoorController(backend),
         MethodController(backend),
@@ -59,7 +65,7 @@ def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
         # Infinite 200 PRO
         TrayController(reader),
         AbsorbanceReader(reader),
-        FluentPlateHandling(reader),
+        FluentPlateHandling(reader, tracker),
         # 全体
         StatusController(backend),
     ]

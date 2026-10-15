@@ -1,0 +1,5 @@
+<Object Type="Tecan.VisionX.ApplicationDriver.LegacyDriverMacro">
+<LegacyDriverMacro Version="1" Name="InhecoIncubator_ShakeOn" ModuleName="InhecoIncubator" ExecutionTime="PT2S" IsBreakpoint="false" IsDisabledForExecution="false" LineNumber="0">
+<ExecutionSettings>14,1.0,14,1.0,180</ExecutionSettings>
+</LegacyDriverMacro>
+</Object>

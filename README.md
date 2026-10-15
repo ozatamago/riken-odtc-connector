@@ -18,6 +18,23 @@ UniteLabs コネクタの「最後に開いた窓口」を通して他人のラ�
 
 これから足す装置の Feature には、装置名を頭に付ける（例 `BioShakeController`）。ODTC の `TemperatureController` は名前を変えずに残している。
 
+### RGA（`RgaController`、このサーバだけ）
+
+| Command / Property | 中身 |
+|---|---|
+| `LabwarePositions`（P） | 運んでよいラボウェアと、コネクタが覚えている今の位置 |
+| `MoveLabware(Labware, Location, Site)` | 指定の位置へ運ぶ（例 `Regrip_Pos`, 1 = リーダに入れる前の持ち替え位置） |
+| `ReturnLabware(Labware)` | 元の位置（ワークテーブルの初期位置）へ戻す |
+| `RecordLabwarePosition(Labware, Location, Site)` | 手で動かしたときに今の位置を教える（装置は動かない） |
+
+- FluentControl はランのたびにラボウェアの位置を初期位置に戻して覚え直すので、コネクタが今の位置を覚え
+  （`~/.riken_fluent780/labware_positions.json`）、次のランの最初に `RemoveLabware` → `AddLabware` で記憶を合わせてから運ぶ。
+- 運んでよいのは設定 `plates.labware` に名前・型・元の位置を書いたものだけ（既定は `96 Well Flat_Custom[001]`、元の位置 `Nest7mm_Pos[6]`）。
+- **2026-10-15 に UniteLabs App から実機で確認**: `Nest7mm_Pos[6]` → `Regrip_Pos[1]` → 別のランで `Nest7mm_Pos[6]` へ戻す。
+- UniteLabs App で文字列の値を入れるときは、引用符を付けない（付けると引用符まで値になる）。
+
+GUI スクリプトから取り出した装置のマクロの雛形（83 個）は `tests/fixtures/gui_macros/`（出どころは `index.tsv`、取り出しは `tools/extract_gui_macros.py`）。
+
 ---
 
 ## ODTC
