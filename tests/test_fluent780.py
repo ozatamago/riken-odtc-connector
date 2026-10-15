@@ -24,6 +24,7 @@ def test_all_features_are_there_with_unique_names():
         "RgaController",
         "DoorController", "MethodController", "TemperatureController",
         "TrayController", "AbsorbanceReader", "FluentPlateHandling",
+        "BioShakeController", "ShakingIncubatorController", "TemperaturePositionController", "Incubator1Controller",
         "StatusController",
     ]
     assert len(set(names)) == len(names)

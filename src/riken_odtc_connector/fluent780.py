@@ -23,6 +23,12 @@ from .method_controller import MethodController
 from .rga_controller import LabwareTracker, PlateTransferConfig, RgaController
 from .status_controller import StatusController
 from .temperature_controller import TemperatureController
+from .temperature_devices import (
+    BioShakeController,
+    Incubator1Controller,
+    ShakingIncubatorController,
+    TemperaturePositionController,
+)
 
 __version__ = "0.1.0"
 
@@ -37,8 +43,9 @@ class Fluent780ConnectorConfig(ConnectorBaseConfig):
             type="Workcell",
             description=(
                 "Devices of the RIKEN BDR Tecan Fluent 780, driven through FluentControl: Inheco ODTC 96 "
-                "(door, methods, temperatures), Tecan Infinite 200 PRO (tray, absorbance, plate handling) and the RGA plate "
-                "gripper (moving registered labware)."
+                "(door, methods, temperatures), Tecan Infinite 200 PRO (tray, absorbance, plate handling), the RGA plate "
+                "gripper (moving registered labware) and the temperatures of BioShake, Inheco incubator, CPLC positions "
+                "and Incubator1."
             ),
             version=__version__,
             vendor_url="https://www.riken.jp/",
@@ -66,6 +73,11 @@ def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
         TrayController(reader),
         AbsorbanceReader(reader),
         FluentPlateHandling(reader, tracker),
+        # 温度制御つきの装置（01〜07 で使う）
+        BioShakeController(backend),
+        ShakingIncubatorController(backend),
+        TemperaturePositionController(backend),
+        Incubator1Controller(backend),
         # 全体
         StatusController(backend),
     ]
