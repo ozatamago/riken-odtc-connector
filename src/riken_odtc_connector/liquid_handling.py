@@ -205,12 +205,25 @@ def pipetting_xml(kind: str, labware: str, wells: list[str], volumes: list[float
 # ---------------------------------------------------------------- the feature
 class LiquidHandling(sila.Feature):
     """
-    Pipetting with the Air FCA (8 channels): GetTips, Aspirate, Dispense, Mix, DropTips. Each command sends one
-    FluentControl statement. All of them MOVE the arm.
+    Pipetting with the Air FCA (8 channels). Each command sends one FluentControl statement taken from the 01-07
+    scripts. Use them between RunController.StartRun and EndRun, on labware added with LabwareController.AddLabware
+    or already on FluentControl's worktable. Channels are numbered 1-8; volumes are in ul. Before sending, the
+    liquid class, tips and labware are checked against FluentControl's definitions and recorded.
 
-    Use them between RunController.StartRun and EndRun, on labware added with LabwareController.AddLabware. Channels
-    are numbered 1-8; give one well and one volume per channel (e.g. Channels [1], Wells ["A1"], Volumes [50]).
-    One aspiration per set of tips: GetTips -> Aspirate -> Dispense (one or more) -> DropTips. Volumes are in ul.
+    Step by step (you handle the tips): GetTips -> Aspirate -> Dispense (one or more) -> DropTips, plus Mix,
+    DetectLiquid (returns the volume found) and MoveArm. Give one well and one volume per channel (e.g. Channels [1],
+    Wells ["A1"], Volumes [50]). One aspiration per set of tips.
+
+    Whole transfers (FluentControl takes, uses and drops the tips itself; refused while tips are mounted):
+    DistributeReagent (one source into many wells, optionally several dispenses per aspiration), TransferSamples
+    (well to well, a new tip per sample), TransferIndividualVolumes (a different volume per pair of wells) and
+    RunWorklist (a list of transfers). They return the steps FluentControl expanded them into: tips taken, wells,
+    volumes and the volume really aspirated.
+
+    Settings and checks: SetLiquidDetectionErrorHandling (what to do on liquid detection errors for the rest of the
+    run) and CheckInlineFilters (pressure test of the filters; the arm does not move).
+
+    Every command except SetLiquidDetectionErrorHandling and CheckInlineFilters MOVES the arm.
     """
 
     def __init__(self, backend: FluentOdtcBackend):
