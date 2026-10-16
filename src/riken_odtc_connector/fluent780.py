@@ -21,6 +21,7 @@ from .definitions import FluentPc
 from .fluent_backend import FluentBackendConfig, FluentOdtcBackend
 from .infinite.features import AbsorbanceReader, FluentPlateHandling, TrayController
 from .infinite.reader import FluentInfiniteReader, InfiniteConfig
+from .labware_controller import LabwareController
 from .method_controller import MethodController
 from .rga_controller import LabwareTracker, PlateTransferConfig, RgaController
 from .run_controller import RunController
@@ -68,6 +69,7 @@ def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
     return [
         # RGA
         RgaController(backend, tracker),
+        LabwareController(backend, tracker),
         # ODTC
         DoorController(backend),
         MethodController(backend),

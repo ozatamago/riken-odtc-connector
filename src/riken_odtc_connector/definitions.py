@@ -110,6 +110,8 @@ def extract_references(xml: str) -> dict[str, list]:
             refs["arms"].add("RGA 1")
     if re.search(r'<Object Type="[^"]*\.Li[Hh]a', t):
         refs["arms"].add("Air FCA 1")
+    if re.search(r'<Object Type="[^"]*\.Rga\.Scripting\.', t):  # CgaGetFingers / CgaDropFingers
+        refs["arms"].add("RGA 1")
     return {k: sorted(v) for k, v in refs.items()}
 
 
