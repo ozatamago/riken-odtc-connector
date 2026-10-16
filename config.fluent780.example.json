@@ -11,7 +11,7 @@
     "uuid": "7c3f1e9a-2b5d-4a8e-b6c4-0d1f2e3a4b50",
     "name": "Tecan Fluent 780",
     "type": "Workcell",
-    "description": "Devices of the RIKEN BDR Tecan Fluent 780, driven through FluentControl: Inheco ODTC 96 (door, methods, temperatures) and Tecan Infinite 200 PRO (tray, absorbance, plate handling).",
+    "description": "Devices of the RIKEN BDR Tecan Fluent 780, driven through FluentControl: Inheco ODTC 96 (door, methods, temperatures), Tecan Infinite 200 PRO (tray, absorbance, plate handling), the RGA plate gripper (moving labware, lids, gripper fingers; FluentControl's own labware statements inside a held-open run), BioShake, Inheco incubator, CPLC positions and Incubator1 (temperatures, shaking, doors). Every command is checked against the FluentControl definitions it uses and recorded on the Fluent PC before it is sent.",
     "version": "0.1",
     "vendor_url": "https://www.riken.jp/",
     "default_lifetime": 3600.0
