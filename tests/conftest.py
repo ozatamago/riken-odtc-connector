@@ -7,6 +7,7 @@ def _offline(tmp_path, monkeypatch):
     from riken_odtc_connector.definitions import DefinitionCheckFailed, FluentPc
 
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # what expanduser uses on Windows (the Fluent PC)
 
     def offline(*_a, **_k):
         raise DefinitionCheckFailed("offline (tests)")
