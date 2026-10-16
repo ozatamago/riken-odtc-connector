@@ -21,9 +21,10 @@ refused if a name is missing, a location or site is not on the worktable, a liqu
 of this instrument), or a definition file changed since it was last accepted (``accept_pending_changes`` after
 checking). Files seen for the first time are accepted and noted in the record.
 
-Nothing is kept on the computer running the connector, except (a) a record whose copy to the Fluent PC failed, kept in
-``~/.riken_fluent780/pending`` and copied again before the next operation, and (b) dry-run records in
-``~/.riken_fluent780/dry-run``, which are deleted as soon as a real operation has finished.
+Records are sent to the Fluent PC in the background, so a slow or hanging SSH connection never holds up a command
+(2026-10-16: an SSH call hung for 300 s after a plate had already been put down, and the command looked frozen).
+A finished record waits in ``~/.riken_fluent780/pending`` until it has been copied, and is then removed there.
+Dry-run records stay in ``~/.riken_fluent780/dry-run`` and are deleted as soon as a real operation has finished.
 """
 
 import dataclasses
@@ -36,6 +37,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import xml.etree.ElementTree as ET
 
 from unitelabs.cdk.config import Config
@@ -149,6 +151,9 @@ $json
 class FluentPc:
     """Access to the definitions and records on the Fluent PC over SSH."""
 
+    STORE_TIMEOUT = 60
+    """Seconds for each SSH/scp call while storing a record (it is retried later if it fails)."""
+
     def __init__(self, config: DefinitionsConfig):
         self.config = config
         self.root = config.remote_dir.rstrip("\\")
@@ -160,8 +165,8 @@ class FluentPc:
             raise DefinitionCheckFailed(f"SSH to the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
         return out.stdout
 
-    def _scp(self, src: str, dest: str, recursive: bool = False) -> None:
-        out = subprocess.run(["scp", "-q"] + (["-r"] if recursive else []) + [src, dest], capture_output=True, timeout=600)
+    def _scp(self, src: str, dest: str, recursive: bool = False, timeout: int = 600) -> None:
+        out = subprocess.run(["scp", "-q"] + (["-r"] if recursive else []) + [src, dest], capture_output=True, timeout=timeout)
         if out.returncode != 0:
             raise DefinitionCheckFailed(f"Copy to/from the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
 
@@ -170,15 +175,17 @@ class FluentPc:
 
     def run_ps(self, script: str, timeout: int = 600) -> bytes:
         """Copy a PowerShell script into OFML\\work and run it (avoids quoting problems)."""
-        self._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{self.root}\\work\' | Out-Null"')
+        name = f"run_{os.getpid()}_{threading.get_ident()}.ps1"  # the background uploader may run at the same time
+        self._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{self.root}\\work\' | Out-Null"',
+                  min(timeout, 300))
         with tempfile.NamedTemporaryFile("w", suffix=".ps1", delete=False, encoding="utf-8-sig") as f:
             f.write(script)
             local = f.name
         try:
-            self._scp(local, self._remote(self.root + r"\work\run.ps1"))
+            self._scp(local, self._remote(self.root + "\\work\\" + name), timeout=min(timeout, 300))
         finally:
             os.unlink(local)
-        return self._ssh(f'powershell -NoProfile -ExecutionPolicy Bypass -File "{self.root}\\work\\run.ps1"', timeout)
+        return self._ssh(f'powershell -NoProfile -ExecutionPolicy Bypass -File "{self.root}\\work\\{name}"', timeout)
 
     def index(self) -> dict[str, dict]:
         folders = ",".join(f"'{REMOTE_DB}\\{f}'" for f in FOLDERS)
@@ -229,8 +236,9 @@ class FluentPc:
         (pairs of relative path and SHA-256) in OFML\\definitions\\versions once."""
         target = f"{self.root}\\records\\{remote_rel}"
         parent = target.rsplit("\\", 1)[0]
-        self._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{parent}\' | Out-Null"')
-        self._scp(str(local), self._remote(parent) + "/", recursive=local.is_dir())
+        t = self.STORE_TIMEOUT
+        self._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{parent}\' | Out-Null"', t)
+        self._scp(str(local), self._remote(parent) + "/", recursive=local.is_dir(), timeout=t)
         if definitions:
             # copy to a temporary name, check the hash, then keep it under the hash it really has
             lines = "\n".join(
@@ -240,7 +248,8 @@ class FluentPc:
                 f"if ($h -eq '{sha}') {{ Move-Item $tmp $v }} else {{ Move-Item -Force $tmp ($v -replace '{sha}', $h); "
                 f"'changed while copying: {rel}' }} }}" for rel, sha in definitions)
             self.run_ps("$ErrorActionPreference = 'Stop'\n"
-                        f"New-Item -ItemType Directory -Force '{self.root}\\definitions\\versions' | Out-Null\n" + lines + "\n")
+                        f"New-Item -ItemType Directory -Force '{self.root}\\definitions\\versions' | Out-Null\n" + lines + "\n",
+                        timeout=t)
 
 
 # ---------------------------------------------------------------- worktable
@@ -287,8 +296,12 @@ def tip_values(xml: bytes) -> dict[str, str]:
 class Preflight:
     """Checks the definitions an operation uses and keeps the record on the Fluent PC."""
 
-    def __init__(self, config: DefinitionsConfig, dry_run: bool, pc: FluentPc | None = None):
+    def __init__(self, config: DefinitionsConfig, dry_run: bool, pc: FluentPc | None = None, background: bool = True):
         self.config = config
+        self.background = background
+        """Send records to the Fluent PC in a background thread (False: send before returning, used by tests)."""
+        self._upload_lock = threading.Lock()
+        self._upload_wanted = threading.Event()
         self.dry_run = dry_run
         self.pc = pc or FluentPc(config)
         self.local = pathlib.Path(os.path.expanduser(config.local_dir))
@@ -314,35 +327,64 @@ class Preflight:
             else:
                 shutil.copy2(local, dest)
             return
-        try:
-            self.pc.store_record(local, remote_rel, definitions)
-        except Exception as exc:  # noqa: BLE001 - the operation itself is over; keep the record and retry later
-            stash = self.local / "pending" / remote_rel.replace("\\", "/")
-            stash.parent.mkdir(parents=True, exist_ok=True)
-            if local.is_dir():
-                shutil.copytree(local, stash, dirs_exist_ok=True)
-            else:
-                shutil.copy2(local, stash)
-            (stash.parent / (stash.name + ".pending.json")).write_text(
-                json.dumps({"remote_rel": remote_rel, "definitions": definitions, "error": str(exc)[:300]}))
+        stash = self.local / "pending" / remote_rel.replace("\\", "/")
+        stash.parent.mkdir(parents=True, exist_ok=True)
+        if local.is_dir():
+            shutil.copytree(local, stash, dirs_exist_ok=True)
+        else:
+            shutil.copy2(local, stash)
+        (stash.parent / (stash.name + ".pending.json")).write_text(
+            json.dumps({"remote_rel": remote_rel, "definitions": definitions}))
+        self.store_pending()
 
     def store_pending(self) -> None:
-        """Copy records whose earlier copy to the Fluent PC failed, then remove them here."""
-        root = self.local / "pending"
-        if self.dry_run or not root.exists():
+        """Send the waiting records to the Fluent PC (in the background unless background=False)."""
+        if self.dry_run or not (self.local / "pending").exists():
             return
+        if not self.background:
+            self._upload_all()
+            return
+        self._upload_wanted.set()
+        if self._upload_lock.acquire(blocking=False):
+            threading.Thread(target=self._uploader, name="record-upload", daemon=True).start()
+
+    def _uploader(self) -> None:
+        try:
+            while self._upload_wanted.is_set():
+                self._upload_wanted.clear()
+                self._upload_all()
+        finally:
+            self._upload_lock.release()
+
+    def wait_for_uploads(self, timeout: float = 120) -> bool:
+        """Wait until the background uploader is idle. True if it finished in time."""
+        if self._upload_lock.acquire(timeout=timeout):
+            self._upload_lock.release()
+            return True
+        return False
+
+    def _upload_all(self) -> None:
+        root = self.local / "pending"
         for meta in sorted(root.rglob("*.pending.json")):
             info = json.loads(meta.read_text())
             item = meta.with_name(meta.name[: -len(".pending.json")])
             try:
                 self.pc.store_record(item, info["remote_rel"], info["definitions"])
-            except Exception:  # noqa: BLE001 - try again next time
+            except Exception as exc:  # noqa: BLE001 - the operation itself is over; try again next time
+                info["error"] = f"{datetime.datetime.now().isoformat(timespec='seconds')} {str(exc)[:300]}"
+                meta.write_text(json.dumps(info))
                 continue
             if item.is_dir():
                 shutil.rmtree(item, ignore_errors=True)
             else:
                 item.unlink(missing_ok=True)
             meta.unlink()
+        # leave nothing behind on this computer once everything is on the Fluent PC
+        for d in sorted((p for p in root.rglob("*") if p.is_dir()), key=lambda p: len(p.parts), reverse=True) + [root]:
+            if d.exists() and not any(d.iterdir()):
+                d.rmdir()
+        if self.local.exists() and not any(self.local.iterdir()):
+            self.local.rmdir()
 
     def forget_dry_runs(self) -> None:
         """Dry-run records are only kept until a real operation has run."""

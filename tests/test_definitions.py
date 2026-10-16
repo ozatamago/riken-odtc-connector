@@ -133,7 +133,7 @@ def pc(tmp_path):
 
 @pytest.fixture
 def preflight(pc):
-    return Preflight(DefinitionsConfig(workspace="WT_TEST"), dry_run=False, pc=pc)
+    return Preflight(DefinitionsConfig(workspace="WT_TEST"), dry_run=False, pc=pc, background=False)
 
 
 def test_ok_command_is_recorded_on_the_fluent_pc_only(preflight, pc, tmp_path):
@@ -232,3 +232,21 @@ def test_each_definition_version_is_stored_once(preflight, pc):
     preflight.accept_pending_changes()
     preflight.begin([("Aspirate", aspirate_xml("Water Free Single"))], "accepted").finish({"status": "ok"})
     assert len(list((pc.records.parent / "versions").glob("*.xlqc"))) == 2  # before and after the edit
+
+
+def test_a_hanging_fluent_pc_does_not_hold_up_the_command(pc, tmp_path):
+    import threading
+    import time
+
+    release = threading.Event()
+    real = pc.store_record
+    pc.store_record = lambda *a: (release.wait(10), real(*a))
+    p = Preflight(DefinitionsConfig(workspace="WT_TEST"), dry_run=False, pc=pc)  # background upload
+    t0 = time.monotonic()
+    p.begin([("x", rga_xml("Regrip_Pos", 1))], "slow").finish({"status": "ok"})
+    assert time.monotonic() - t0 < 2  # returned while the upload still hangs
+    assert list((tmp_path / ".riken_fluent780" / "pending").rglob("*.pending.json"))
+    release.set()
+    assert p.wait_for_uploads(10)
+    assert len(list((pc.records / "runs").iterdir())) == 1
+    assert not list((tmp_path / ".riken_fluent780" / "pending").rglob("*.pending.json"))
