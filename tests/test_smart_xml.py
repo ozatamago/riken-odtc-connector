@@ -178,7 +178,7 @@ def test_the_commands_in_a_dry_run():
         with pytest.raises(LiquidHandlingFailed, match="1000ul SBS\\[001\\]"):
             await lh.distribute_reagent("Water[001]", "A1", "Plate[001]", ["A1"], 50, "Water Free Single",
                                         "FCA, 1000ul SBS", [1], 1, 1, status=S)
-        with pytest.raises(LiquidHandlingFailed, match="more than a FCA, 200ul SBS tip holds"):
+        with pytest.raises(LiquidHandlingFailed, match="about 200 ul .* tip holds 170 ul"):
             await lh.distribute_reagent("Water[001]", "A1", "Plate[001]", ["A1", "B1"], 100, "Water Free Single",
                                         "FCA, 200ul SBS", [1], 1, 2, status=S)
         await lh.distribute_reagent("Water[001]", "A1", "Plate[001]", ["A1", "B1", "C1"], 50, "Water Free Single",
@@ -198,3 +198,15 @@ def test_the_commands_in_a_dry_run():
         assert await backend.end_run() == 11
 
     asyncio.run(scenario())
+
+
+def test_planned_aspiration_from_the_liquid_class():
+    from riken_odtc_connector.liquid_handling import corrected_volume, planned_aspiration
+
+    adjust = "AdjustAccuracy(volume,2,0.922,5,3.615,10,8.118,50,46.478,100,95.291,200,192.453)"
+    assert abs(corrected_volume(adjust, 50) - 53.5) < 0.2  # FluentControl logged 53.52 (2026-10-16)
+    multi = {"CorrectionVolumeFormular": adjust, "ExcessVolumeFormular": "0.25*volume", "ConditioningVolumeFormular": "0"}
+    plan = planned_aspiration(multi, 30, 3)
+    assert plan["dispensed"] == 90 and plan["excess"] == 22.5 and 120 < plan["liquid_in_tip"] < 122  # 3 x 32.8 corrected + 22.5
+    odd = planned_aspiration({"ExcessVolumeFormular": "if(volume>5,1,2)"}, 10, 1)
+    assert odd["excess"] is None and not odd["formulas_understood"]

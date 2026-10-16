@@ -51,6 +51,59 @@ foreach ($m in [regex]::Matches($t, 'TimeStamp="([0-9-]+ [0-9:.]+)"[^>]*Message=
 """Reads FluentControl's log on the Fluent PC for the volumes Detect Liquid found (the statement returns nothing)."""
 
 
+def _evaluate(formula: str, volume: float) -> float | None:
+    """A liquid-class formula that only uses numbers, + - * / and "volume" (e.g. "0.25*volume"); None otherwise."""
+    import ast
+    import operator
+
+    ops = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv}
+
+    def ev(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.Name) and node.id == "volume":
+            return volume
+        if isinstance(node, ast.BinOp) and type(node.op) in ops:
+            return ops[type(node.op)](ev(node.left), ev(node.right))
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+            return -ev(node.operand)
+        raise ValueError
+
+    try:
+        return ev(ast.parse(formula.strip(), mode="eval").body)
+    except (SyntaxError, ValueError, ZeroDivisionError):
+        return None
+
+
+def corrected_volume(formula: str, volume: float) -> float:
+    """The volume FluentControl moves to deliver volume, from AdjustAccuracy(volume, set1, delivered1, ...): the set
+    volume is interpolated from the delivered volumes (50 ul -> about 53.5 ul for 200 ul tips; FluentControl logged
+    53.52 on 2026-10-16). Returns volume itself for other formulas."""
+    m = re.fullmatch(r"\s*AdjustAccuracy\(\s*volume\s*,(.*)\)\s*", formula or "")
+    if not m:
+        return volume
+    nums = [float(x) for x in m.group(1).split(",")]
+    pairs = sorted(zip(nums[1::2], nums[0::2]))  # (delivered, set)
+    if len(pairs) < 2:
+        return volume
+    for (d0, s0), (d1, s1) in zip(pairs, pairs[1:]):
+        if volume <= d1 or (d1, s1) == pairs[-1]:
+            return s0 + (volume - d0) * (s1 - s0) / (d1 - d0)
+    return volume
+
+
+def planned_aspiration(equations: dict, volume: float, dispenses: int) -> dict:
+    """What one aspiration for `dispenses` dispenses of `volume` takes up, from the liquid class equations: the
+    corrected volume of each dispense plus the excess volume (Water Free Multi: 25 %) and conditioning volume."""
+    total = volume * dispenses
+    corrected = corrected_volume(equations.get("CorrectionVolumeFormular", ""), volume) * dispenses
+    excess = _evaluate(equations.get("ExcessVolumeFormular", "0") or "0", total)
+    conditioning = _evaluate(equations.get("ConditioningVolumeFormular", "0") or "0", total)
+    known = excess is not None and conditioning is not None
+    return {"dispensed": total, "corrected": round(corrected, 2), "excess": excess, "conditioning": conditioning,
+            "liquid_in_tip": round(corrected + (excess or 0) + (conditioning or 0), 2), "formulas_understood": known}
+
+
 class LiquidHandlingFailed(Exception):
     """The pipetting command was refused or failed. The description says why."""
 
@@ -396,8 +449,10 @@ class LiquidHandling(sila.Feature):
         xcmp = _unescape(self._definition(labware_type, ".xcmp").decode("utf-8-sig", errors="replace"))
         return labware_type, labware_geometry(xcmp)
 
-    def _tip_and_class(self, tip_type: str, liquid_class: str, volumes: list[float], labware_types: list[str]) -> dict:
-        """Checks for statements that take their own tips (Smart Commands, worklists); returns the record extras."""
+    def _tip_and_class(self, tip_type: str, liquid_class: str, volumes: list[float], labware_types: list[str],
+                       dispenses: int = 1) -> dict:
+        """Checks for statements that take their own tips (Smart Commands, worklists); returns the record extras.
+        dispenses: dispenses per aspiration; the liquid in the tip then is checked against the tip size."""
         if tip_type not in TIP_TYPES:
             raise LiquidHandlingFailed(f"TipType must be one of {', '.join(TIP_TYPES)}")
         if tip_type.startswith("FCA, 1000ul SBS"):
@@ -412,13 +467,19 @@ class LiquidHandling(sila.Feature):
             raise LiquidHandlingFailed("Volumes must be above 0")
         values = tip_values(self._definition(tip_type, ".xcmp"))
         capacity = float(values.get("MaxNettoVolumeForTransferPhase", 0) or 0)
-        if capacity and max(volumes) > capacity:
-            raise LiquidHandlingFailed(f"{max(volumes):g} ul is more than a {tip_type} tip holds ({capacity:g} ul)")
         group = values.get("DiTiTypeGroup", "")
         settings = liquid_class_settings(self._definition(liquid_class, ".xlqc"), group)
         if settings is None:
             raise LiquidHandlingFailed(f"Liquid class '{liquid_class}' has no Air FCA settings for {group} tips")
-        return {"tip": {"type": tip_type, **values}, "liquid_class_settings": {liquid_class: {group: settings}}}
+        plan = planned_aspiration(settings["equations"], max(volumes), max(1, int(dispenses)))
+        if capacity and plan["liquid_in_tip"] > capacity:
+            raise LiquidHandlingFailed(
+                f"One aspiration would take up about {plan['liquid_in_tip']:g} ul ({plan['dispensed']:g} ul to dispense, "
+                f"corrected to {plan['corrected']:g}, plus excess {plan['excess']} and conditioning "
+                f"{plan['conditioning']} ul from '{liquid_class}'); a {tip_type} tip holds {capacity:g} ul. "
+                "Use fewer dispenses per aspiration or larger tips")
+        return {"tip": {"type": tip_type, **values}, "liquid_class_settings": {liquid_class: {group: settings}},
+                "planned_aspiration": plan}
 
     def _put_file(self, name: str, text: str) -> str:
         """Save a file the statement reads (worklist, volume list) in the open run's record on the Fluent PC."""
@@ -575,7 +636,8 @@ class LiquidHandling(sila.Feature):
         try:
             source_type, source_geo = self._geometry(source)
             target_type, target_geo = self._geometry(target)
-            extra = self._tip_and_class(tip_type, liquid_class, [volume * max_multi_dispense], [target_type])
+            extra = self._tip_and_class(tip_type, liquid_class, [volume], [target_type],
+                                        min(max_multi_dispense, len(target_wells)))
             xml = reagent_distribution_xml(source, source_well, source_geo, target, target_wells, target_geo, volume,
                                            liquid_class, tip_type, channels, max_tip_reuse, max_multi_dispense)
         except (BackendError, DefinitionCheckFailed) as exc:
@@ -655,7 +717,8 @@ class LiquidHandling(sila.Feature):
         try:
             source_type, source_geo = self._geometry(source)
             target_type, target_geo = self._geometry(target)
-            extra = self._tip_and_class(tip_type, liquid_class, list(volumes), [target_type])
+            extra = self._tip_and_class(tip_type, liquid_class, list(volumes), [target_type],
+                                        min(max_multi_dispense, len(volumes)))
             rows = [(well_index(s, source_geo["ycount"], source_geo["xcount"]) + 1,
                      well_index(t, target_geo["ycount"], target_geo["xcount"]) + 1, float(v))
                     for s, t, v in zip(source_wells, target_wells, volumes)]
