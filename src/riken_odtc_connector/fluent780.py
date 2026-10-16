@@ -16,6 +16,7 @@ import dataclasses
 
 from unitelabs.cdk import Connector, ConnectorBaseConfig, SiLAServerConfig, sila
 
+from .colormix_demo import ColorMixDemo
 from .door_controller import DoorController
 from .deck_camera import DeckCamera, DeckCameraConfig, DeckCameras
 from .definitions import FluentPc
@@ -75,11 +76,12 @@ def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
                           config.fluent.definitions.remote_dir + "\\records", config.fluent.dry_run)
     backend.cameras = cameras
     cameras.session_dir = lambda: backend.session_dir
+    liquid = LiquidHandling(backend)
     return [
         # RGA
         RgaController(backend, tracker),
         LabwareController(backend, tracker),
-        LiquidHandling(backend),
+        liquid,
         # ODTC
         DoorController(backend),
         MethodController(backend),
@@ -93,6 +95,8 @@ def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
         ShakingIncubatorController(backend),
         TemperaturePositionController(backend),
         Incubator1Controller(backend),
+        # Demo
+        ColorMixDemo(backend, reader, liquid),
         # Overall
         DeckCamera(cameras),
         RunController(backend),
