@@ -12,6 +12,7 @@ cannot be reached, moves are refused rather than guessed. In a dry run, moves ar
 
 import dataclasses
 import json
+import os
 import pathlib
 import re
 
@@ -42,7 +43,8 @@ class PlateTransferConfig(Config):
 class LabwareTracker:
     def __init__(self, config: PlateTransferConfig, pc: FluentPc | None = None, persist: bool = True):
         self.config = config
-        self.remote = bool(re.match(r"^[A-Za-z]:\\", config.positions_file))
+        # A Windows path is on the Fluent PC: read over SSH from another computer, directly on the Fluent PC itself
+        self.remote = bool(re.match(r"^[A-Za-z]:\\", config.positions_file)) and os.name != "nt"
         self.pc = pc
         self.persist = persist
         self._dry: dict[str, list] | None = None
