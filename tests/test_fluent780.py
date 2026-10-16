@@ -2,6 +2,8 @@
 
 import asyncio
 
+import os
+
 import pytest
 
 from riken_odtc_connector.fluent780 import Fluent780ConnectorConfig, build_features
@@ -107,6 +109,7 @@ class _FakePcFiles:
         self.files[path] = text
 
 
+@pytest.mark.skipif(os.name == "nt", reason="on the Fluent PC itself the positions file is read directly, not over SSH")
 def test_positions_live_on_the_fluent_pc_and_dry_runs_do_not_change_them():
     from riken_odtc_connector.rga_controller import LabwareTracker, PlateTransferConfig
 
@@ -124,6 +127,7 @@ def test_positions_live_on_the_fluent_pc_and_dry_runs_do_not_change_them():
     assert dry.where(plate) == ("Nest7mm_Pos", 6) and '"Regrip_Pos"' in pc.files[path]
 
 
+@pytest.mark.skipif(os.name == "nt", reason="on the Fluent PC itself the positions file is read directly, not over SSH")
 def test_unreachable_fluent_pc_refuses_instead_of_guessing():
     from riken_odtc_connector.definitions import DefinitionsConfig, FluentPc
     from riken_odtc_connector.rga_controller import LabwareTracker, PlateTransferConfig
