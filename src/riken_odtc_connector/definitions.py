@@ -355,16 +355,16 @@ class Preflight:
             dest = self.local / "dry-run" / remote_rel.replace("\\", "/")
             dest.parent.mkdir(parents=True, exist_ok=True)
             if local.is_dir():
-                shutil.copytree(local, dest, dirs_exist_ok=True)
+                shutil.copytree(remote.long_path(local), remote.long_path(dest), dirs_exist_ok=True)
             else:
-                shutil.copy2(local, dest)
+                shutil.copy2(remote.long_path(local), remote.long_path(dest))
             return
         stash = self.local / "pending" / remote_rel.replace("\\", "/")
         stash.parent.mkdir(parents=True, exist_ok=True)
         if local.is_dir():
-            shutil.copytree(local, stash, dirs_exist_ok=True)
+            shutil.copytree(remote.long_path(local), remote.long_path(stash), dirs_exist_ok=True)
         else:
-            shutil.copy2(local, stash)
+            shutil.copy2(remote.long_path(local), remote.long_path(stash))
         (stash.parent / (stash.name + ".pending.json")).write_text(
             json.dumps({"remote_rel": remote_rel, "definitions": definitions}))
         self.store_pending()
@@ -407,7 +407,7 @@ class Preflight:
                 meta.write_text(json.dumps(info))
                 continue
             if item.is_dir():
-                shutil.rmtree(item, ignore_errors=True)
+                shutil.rmtree(remote.long_path(item), ignore_errors=True)
             else:
                 item.unlink(missing_ok=True)
             meta.unlink()
@@ -420,7 +420,7 @@ class Preflight:
 
     def forget_dry_runs(self) -> None:
         """Dry-run records are only kept until a real operation has run."""
-        shutil.rmtree(self.local / "dry-run", ignore_errors=True)
+        shutil.rmtree(remote.long_path(self.local / "dry-run"), ignore_errors=True)
 
     # ---- baseline
     def accept_pending_changes(self) -> list[str]:
@@ -614,7 +614,7 @@ class RunRecord:
             self.discard()
 
     def discard(self) -> None:
-        shutil.rmtree(self._tmp, ignore_errors=True)
+        shutil.rmtree(remote.long_path(self._tmp), ignore_errors=True)
 
 
 # ---------------------------------------------------------------- liquid class settings for one tip type

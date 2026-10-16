@@ -15,6 +15,15 @@ import subprocess
 LOCAL = "local"
 
 
+def long_path(path) -> str:
+    """On Windows, the form of an absolute path that is not limited to 260 characters ("\\\\?\\C:\\..."): a record
+    folder (session, record and step file names) can be longer. Unchanged elsewhere."""
+    text = str(path)
+    if os.name != "nt" or text.startswith("\\\\?\\"):
+        return text
+    return "\\\\?\\" + os.path.abspath(text)
+
+
 def is_local(target: str) -> bool:
     return target.strip().lower() == LOCAL
 
@@ -47,8 +56,8 @@ def copy(src: str, dest: str, recursive: bool = False, timeout: float = 600, tar
                               capture_output=True, timeout=timeout)
     try:
         into = dest.endswith(("/", "\\")) or os.path.isdir(dest)
-        source = pathlib.Path(src)
-        final = pathlib.Path(dest) / source.name if into else pathlib.Path(dest)
+        source = pathlib.Path(long_path(src))
+        final = pathlib.Path(long_path(dest)) / source.name if into else pathlib.Path(long_path(dest))
         final.parent.mkdir(parents=True, exist_ok=True)
         if source.is_dir():
             if not recursive:
