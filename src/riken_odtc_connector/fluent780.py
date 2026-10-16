@@ -22,6 +22,7 @@ from .infinite.features import AbsorbanceReader, FluentPlateHandling, TrayContro
 from .infinite.reader import FluentInfiniteReader, InfiniteConfig
 from .method_controller import MethodController
 from .rga_controller import LabwareTracker, PlateTransferConfig, RgaController
+from .run_controller import RunController
 from .status_controller import StatusController
 from .temperature_controller import TemperatureController
 from .temperature_devices import (
@@ -80,6 +81,7 @@ def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
         TemperaturePositionController(backend),
         Incubator1Controller(backend),
         # Overall
+        RunController(backend),
         StatusController(backend),
     ]
 

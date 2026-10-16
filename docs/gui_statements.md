@@ -87,7 +87,7 @@ applies. A liquid class (`.xlqc`, 61 on the instrument PC) contains, per pipetti
    tracking, Z reference such as `Z_MAX` / `KnownPosition` / `Z_DISPENSE` and offset, retract position, density,
    viscosity, pressure monitoring)
 
-The classes used in 01-07 were compared completely (all fields of the AirFca part, for the 10 µl, 50 µl Filtered,
+The classes used in 01-07 were compared completely (all fields of the AirFca part, for all 19 tip groups; detailed tables for the 10 µl, 200 µl, 200 µl Filtered, 1000 µl and 1000 µl Filtered tips used by 01-07; corrected 2026-10-16, previously listed 50 µl Filtered by mistake,
 200 µl and 1000 µl Filtered tips) against Water Free Single. Highlights for the 200 µl tip:
 
 | Liquid class | Main differences from Water Free Single |
