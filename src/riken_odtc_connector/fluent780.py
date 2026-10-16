@@ -46,12 +46,12 @@ class Fluent780ConnectorConfig(ConnectorBaseConfig):
             name="Tecan Fluent 780",
             type="Workcell",
             description=(
-                "Devices of the RIKEN BDR Tecan Fluent 780, driven through FluentControl: Inheco ODTC 96 (door, metho"
-                "ds, temperatures), Tecan Infinite 200 PRO (tray, absorbance, plate handling), the RGA plate gripper "
-                "(moving labware, lids, gripper fingers; FluentControl's own labware statements inside a held-open ru"
-                "n), BioShake, Inheco incubator, CPLC positions and Incubator1 (temperatures, shaking, doors). Every "
-                "command is checked against the FluentControl definitions it uses and recorded on the Fluent PC befor"
-                "e it is sent."
+                "Devices of the RIKEN BDR Tecan Fluent 780, driven through FluentControl: Inheco ODTC 96 (door, "
+                "methods, temperatures), Tecan Infinite 200 PRO (tray, absorbance, plate handling), the RGA plate "
+                "gripper (moving labware, lids, gripper fingers; FluentControl's own labware statements inside a "
+                "held-open run), BioShake, Inheco incubator, CPLC positions and Incubator1 (temperatures, shaking, "
+                "doors). Every command is checked against the FluentControl definitions it uses and recorded on the "
+                "Fluent PC before it is sent."
             ),
             version=__version__,
             vendor_url="https://www.riken.jp/",
