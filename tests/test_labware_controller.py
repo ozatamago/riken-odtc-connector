@@ -38,6 +38,7 @@ def gui(path: str) -> list[str]:
     (get_fingers_xml("Eccentric[001]"), "gui_statements/CgaGetFingersScriptCommandDataV1_2.xml"),          # 03 line 29
     (get_fingers_xml("Centric[001]"), "gui_statements/CgaGetFingersScriptCommandDataV1_1.xml"),            # 06 line 59 (04 has the same fields in another order)
     (drop_fingers_xml(), "gui_statements/CgaDropFingersScriptCommandDataV1_2.xml"),                         # 03 line 28
+    (drop_fingers_xml("FES Eccentric Nest[001]"), "gui_statements/CgaDropFingersScriptCommandDataV1_1.xml"),  # 06 line 58
     (remove_labware_xml("TemplatePlate[001]"), "gui_statements/RemoveLabwareDataV1_1.xml"),
 ])
 def test_matches_gui_script_statement(xml, fixture):
@@ -78,7 +79,9 @@ def test_needs_an_open_run_and_refuses_tracked_labware():
         await lc.add_labware("TemplatePlate[001]", "96 Well Skirted PCR_Custom", "Nest7mm_Pos", 1, status=_Status())
         await lc.get_fingers("Eccentric[001]", status=_Status())
         await lc.transfer_labware("TemplatePlate[001]", "Regrip_Pos", 1, status=_Status())
-        await lc.drop_fingers(status=_Status())
+        await lc.drop_fingers("FES Eccentric Nest[001]", status=_Status())
+        with pytest.raises(LabwareCommandFailed, match="Nest must be one of"):
+            await lc.drop_fingers("Somewhere[001]", status=_Status())
         assert await backend.end_run() == 4
 
     asyncio.run(scenario())

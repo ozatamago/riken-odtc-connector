@@ -28,6 +28,8 @@ from .rga_controller import LabwareTracker
 DATA = pathlib.Path(__file__).resolve().parent / "data"
 FINGERS = ("Eccentric[001]", "Centric[001]")
 """Finger sets on the worktable (FES Eccentric Nest / FES Centric Nest). 03 and 05 use Eccentric, 04 and 06 Centric."""
+FINGER_NESTS = ("FES Eccentric Nest[001]", "FES Centric Nest[001]")
+"""Where DropFingers may put the fingers. Empty means back where they came from (BackToSource)."""
 
 
 def _statement(template: str, labware_name: str) -> str:
@@ -44,9 +46,13 @@ def get_fingers_xml(fingers: str) -> str:
     return _statement("cga_get_fingers_reference.xml", fingers)
 
 
-def drop_fingers_xml() -> str:
-    """Put the fingers back where they came from (Backs=BackToSource, as in 03 and 05)."""
-    return _statement("cga_drop_fingers_reference.xml", "")
+def drop_fingers_xml(nest: str = "") -> str:
+    """Put the fingers down: into the named finger nest (as in 06 line 58), or back where they came from when nest is
+    empty (as in 03 and 05). Naming the nest does not rely on FluentControl remembering where the fingers came from,
+    e.g. when they were picked up in an earlier run."""
+    if nest and nest not in FINGER_NESTS:
+        raise BackendError(f"Nest must be one of {', '.join(FINGER_NESTS)} (or empty for back to source)")
+    return _statement("cga_drop_fingers_reference.xml", nest)
 
 
 def transfer_xml(labware: str, location: str, site: int, fixed_site: bool = True) -> str:
@@ -178,7 +184,16 @@ class LabwareController(sila.Feature):
         await self._send(f"GetFingers {fingers}", xml, status)
 
     @sila.ObservableCommand(errors=[LabwareCommandFailed])
-    async def drop_fingers(self, *, status: sila.Status) -> None:
-        """Let the RGA put its gripper fingers back where they came from. MOVES the arm."""
+    async def drop_fingers(self, nest: str, *, status: sila.Status) -> None:
+        """
+        Let the RGA put its gripper fingers down. MOVES the arm.
+
+        Args:
+          Nest: "FES Eccentric Nest[001]" or "FES Centric Nest[001]", or empty to put them back where they came from.
+        """
         self._check()
-        await self._send("DropFingers", drop_fingers_xml(), status)
+        try:
+            xml = drop_fingers_xml(nest)
+        except BackendError as exc:
+            raise LabwareCommandFailed(str(exc)) from None
+        await self._send(f"DropFingers {nest or '(back to source)'}", xml, status)
