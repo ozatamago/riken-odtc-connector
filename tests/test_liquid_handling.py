@@ -11,6 +11,7 @@ from riken_odtc_connector.liquid_handling import (
     LiquidHandlingFailed,
     drop_tips_xml,
     get_tips_xml,
+    move_arm_xml,
     pipetting_xml,
     well_index,
     wells_fields,
@@ -42,6 +43,7 @@ def ref(path: str) -> list[str]:
     (pipetting_xml("Dispense", "96 Well Flat_Custom[001]", [f"{r}1" for r in "ABCDEFGH"], [150] * 8, "Water Free Multi",
                    list(range(1, 9)), 8, 12), "liha_verified/dis_flat_col1.xml"),
     (drop_tips_xml(list(range(1, 9))), "gui_statements/LihaDropTipsScriptCommandDataV2_3.xml"),
+    (move_arm_xml("100ml_Custom_1", "A1", list(range(1, 9)), 1, 1), "fluentcontrol_scripts/movearm_airfca_leakage_test.xml"),
 ])
 def test_matches_xml_that_ran_on_the_instrument(xml, fixture):
     assert obj(xml) == ref(fixture)
@@ -49,6 +51,14 @@ def test_matches_xml_that_ran_on_the_instrument(xml, fixture):
 
 def test_get_tips_can_name_the_rack():
     assert "<LabwareName>FCA_ 1000ul SBS[002]</LabwareName>" in get_tips_xml("FCA, 1000ul SBS", [1], "FCA_ 1000ul SBS[002]")
+
+
+def test_move_arm_one_channel_at_travel_height():
+    xml = move_arm_xml("4 Well SBS Trough[001]", "A1", [1], 1, 4)
+    assert "<SelectedWellsString>1 * A1</SelectedWellsString>" in xml
+    assert "<LabwareName>4 Well SBS Trough[001]</LabwareName>" in xml
+    assert "<MovementType>travelToLabware</MovementType>" in xml and "<ZCustomVector>ZTravel</ZCustomVector>" in xml
+    assert xml.count("<int>") == 1
 
 
 def test_well_numbering_is_column_major():

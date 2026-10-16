@@ -1,6 +1,6 @@
 """FluentControl's pipetting statements of the Air FCA as SiLA commands (stage 4-4).
 
-GetTips, Aspirate, Dispense, Mix and DropTips each send one FluentControl statement. The XML is the 1-channel form
+GetTips, Aspirate, Dispense, Mix, DropTips and MoveArm each send one FluentControl statement. The XML is the 1-channel form
 that ran on the instrument in August 2026 (tests/fixtures/liha_verified); only the values change (labware, wells,
 volumes, liquid class, channels, tip type). tests/test_gui_statements.py checks that these forms have the same
 structure as the statements of the 01-07 GUI scripts.
@@ -92,6 +92,17 @@ def get_tips_xml(tip_type: str, channels: list[int], rack: str = "") -> str:
     xml = _set(xml, "LabwareName", rack)
     xml = re.sub(r"TOOLNAME:[^<]*<", f"TOOLNAME:{_esc(tip_type)}<", xml, count=1)
     return wrap(xml)
+
+
+def move_arm_xml(labware: str, well: str, channels: list[int], rows: int, columns: int) -> str:
+    """Move the Air FCA arm at travel height to a well (FluentControl's Move Arm, "travel to labware"). The form is the
+    one in FluentControl's own "AirFCA Leakage Test and cLLD Self Test" script; nothing is aspirated or dispensed."""
+    xml = _template("liha_movearm_reference.xml")
+    serialized, shown = wells_fields([well] * len(channels), rows, columns)
+    xml = _set(xml, "SerializedWellIndexes", serialized)
+    xml = _set(xml, "SelectedWellsString", shown)
+    xml = _set_list(xml, "SelectedTipsIndexes", [c - 1 for c in channels], "System.Int32")
+    return wrap(_set(xml, "LabwareName", labware))
 
 
 def drop_tips_xml(channels: list[int]) -> str:
@@ -343,6 +354,25 @@ class LiquidHandling(sila.Feature):
         await self._send(f"DropTips ch{channels}", drop_tips_xml(channels), status)
         for c in channels:
             self.backend.tips.pop(c, None)
+
+    @sila.ObservableCommand(errors=[LiquidHandlingFailed])
+    async def move_arm(self, labware: str, well: str, *, status: sila.Status) -> None:
+        """
+        Move the pipetting arm at travel height above a well, e.g. to clear the view of the deck cameras. Nothing is
+        aspirated or dispensed and mounted tips stay on. MOVES the arm.
+
+        Args:
+          Labware: Labware to move above, e.g. "4 Well SBS Trough[001]".
+          Well: Well that channel 1 goes above, e.g. "A1".
+        """
+        self._need_run()
+        self._refresh()
+        rows, columns = self._layout(self._labware_type(labware))
+        try:
+            xml = move_arm_xml(labware, well, [1], rows, columns)
+        except BackendError as exc:
+            raise LiquidHandlingFailed(str(exc)) from None
+        await self._send(f"MoveArm to {labware} {well}", xml, status)
 
     @sila.UnobservableProperty()
     async def get_mounted_tips(self) -> list[str]:
