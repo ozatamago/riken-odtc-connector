@@ -34,7 +34,7 @@ def gui(path: str) -> list[str]:
 @pytest.mark.parametrize(("xml", "fixture"), [
     (transfer_xml("Template_Lid_6mm[001]", "HotelMP_Pos", 2), "gui_macros/RGA1_TransferLabware_17.xml"),  # 03 line 33
     (to_base_xml("IncubationLid_6mm[001]"), "gui_macros/RGA1_TransferLabware_20.xml"),                     # 03 line 56
-    (lid_on_xml("ODTC_Lid[001]", "TemplatePlate[001]"), "gui_macros/RGA1_TransferLabware_18.xml"),         # 03 line 45
+    (lid_on_xml("Template_Lid_6mm[001]", "TemplatePlate[001]"), "gui_macros/RGA1_TransferLabware_23.xml"),  # 03 line 76
     (get_fingers_xml("Eccentric[001]"), "gui_statements/CgaGetFingersScriptCommandDataV1_2.xml"),          # 03 line 29
     (get_fingers_xml("Centric[001]"), "gui_statements/CgaGetFingersScriptCommandDataV1_1.xml"),            # 06 line 59 (04 has the same fields in another order)
     (drop_fingers_xml(), "gui_statements/CgaDropFingersScriptCommandDataV1_2.xml"),                         # 03 line 28
@@ -89,3 +89,10 @@ def test_finger_statements_record_the_rga_settings():
 
     refs = extract_references(get_fingers_xml("Eccentric[001]"))
     assert refs["arms"] == ["RGA 1"] and refs["labware"] == ["Eccentric[001]"]
+
+
+def test_put_lid_on_names_the_site_of_that_plate():
+    # 2026-10-16: with FixedSite=false the lid went onto another plate of the same type
+    from riken_odtc_connector.definitions import _unescape
+
+    assert "<FixedSite>true</FixedSite>" in _unescape(lid_on_xml("TestLid[001]", "TestPlate[001]"))

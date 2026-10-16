@@ -6,7 +6,8 @@ Each command sends one FluentControl statement, built from the same statement in
 - AddLabware / RemoveLabware: AddLabwareDataV1 / RemoveLabwareDataV1 (bookkeeping only; nothing moves)
 - TransferLabware: RGA1_TransferLabware to a location and site
 - MoveLabwareToBase: RGA1_TransferLabware with MoveToBase (e.g. a lid back onto its plate)
-- PutLidOn: RGA1_TransferLabware to the cover site of a plate (GetCoverSiteName / GetCoverSiteIndex, as in 03 and 07)
+- PutLidOn: RGA1_TransferLabware to the cover site of a plate (GetCoverSiteName / GetCoverSiteIndex with FixedSite,
+  as in 03 line 76 and 07 line 124)
 - GetFingers / DropFingers: CgaGetFingers / CgaDropFingers (the RGA picks up or puts back its gripper fingers)
 
 They only work inside a run opened with RunController.StartRun: FluentControl forgets labware added or moved when a
@@ -57,8 +58,12 @@ def to_base_xml(labware: str) -> str:
 
 
 def lid_on_xml(lid: str, plate: str) -> str:
+    # FixedSite must be true. The cover site location is shared by every plate of the same type (e.g.
+    # 96Microplate_CoverSite_4 for all 96 Well Flat_Custom plates); with FixedSite=false FluentControl ignores the
+    # site index and takes the first free cover site, i.e. possibly another plate. On 2026-10-16 the lid went onto
+    # the Flat plate at Nest7mm_Pos[6] instead of the one at [2] this way (03 line 45 uses false; it has one plate).
     q = plate.replace('"', "")
-    return rga_xml(lid, f'GetCoverSiteName("{q}")', f'GetCoverSiteIndex("{q}")', fixed_site=False)
+    return rga_xml(lid, f'GetCoverSiteName("{q}")', f'GetCoverSiteIndex("{q}")', fixed_site=True)
 
 
 class LabwareCommandFailed(Exception):
