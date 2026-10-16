@@ -274,11 +274,43 @@ class LiquidHandling(sila.Feature):
         raise LiquidHandlingFailed(f"{labware} is neither added in this run nor registered on FluentControl's "
                                    "worktable; add it with LabwareController.AddLabware")
 
-    async def _send(self, label: str, xml: str, status: sila.Status, extra: dict | None = None) -> None:
+    async def _send(self, label: str, xml: str, status: sila.Status, extra: dict | None = None, post=None) -> None:
         try:
-            await _with_progress(status, 1, lambda report: self.backend.run_steps([(label, xml)], report, label, extra))
+            await _with_progress(status, 1, lambda report: self.backend.run_steps([(label, xml)], report, label, extra,
+                                                                                  post))
         except BackendError as exc:
             raise LiquidHandlingFailed(str(exc)) from None
+
+    # ---- what FluentControl expanded a Smart Command or worklist into (read from its log, see fc_log.py)
+    def _expansion_reader(self):
+        """(post, result): post() reads the log after the commands ran and returns the record entry; result["steps"]
+        then holds the readable lines for the SiLA response."""
+        from .fc_log import LOG_PS1, describe, expanded_steps
+
+        result: dict = {"steps": []}
+        if self.backend.config.dry_run:
+            return None, result
+        pc = self.pc or self.backend.preflight.pc
+        since = self._pc_time(pc)
+        rows_cache: dict = {}
+
+        def rows_of(labware: str):
+            if labware not in rows_cache:
+                try:
+                    rows_cache[labware] = self._layout(self._labware_type(labware))[0]
+                except Exception:  # noqa: BLE001 - tip racks and the waste are not added labware
+                    rows_cache[labware] = 8 if labware.startswith("FCA_") else None
+            return rows_cache[labware]
+
+        def post() -> dict:
+            if not since:
+                return {"fluentcontrol_steps_error": "the Fluent PC time could not be read"}
+            text = pc.run_ps(LOG_PS1.replace("__SINCE__", since), 180).decode("utf-8-sig", errors="replace")
+            steps = expanded_steps(text)
+            result["steps"] = describe(steps, rows_of)
+            return {"fluentcontrol_steps": steps, "fluentcontrol_steps_text": result["steps"]}
+
+        return post, result
 
     # ---- commands
     @sila.ObservableCommand(errors=[LiquidHandlingFailed])
@@ -626,7 +658,7 @@ class LiquidHandling(sila.Feature):
     @sila.ObservableCommand(errors=[LiquidHandlingFailed])
     async def distribute_reagent(self, source: str, source_well: str, target: str, target_wells: list[str],
                                  volume: float, liquid_class: str, tip_type: str, channels: list[int],
-                                 max_tip_reuse: int, max_multi_dispense: int, *, status: sila.Status) -> None:
+                                 max_tip_reuse: int, max_multi_dispense: int, *, status: sila.Status) -> list[str]:
         """
         Put the same volume of one reagent into many wells (FluentControl's Reagent Distribution, used by 03, 06 and
         07). FluentControl takes the tips, aspirates, dispenses and drops the tips itself. MOVES the arm.
@@ -642,6 +674,11 @@ class LiquidHandling(sila.Feature):
           Channels: Channels 1-8 to use, e.g. [1, 2, 3, 4, 5, 6, 7, 8].
           MaxTipReuse: How often a tip may be used before a new one is taken (03 uses 4 and 12).
           MaxMultiDispense: Dispenses per aspiration (1 = one aspiration per well; 03 uses 12 with Water Free Multi).
+
+        Returns:
+          Steps: What FluentControl did, one line per step it expanded the command into, e.g. "2 Get Tips from
+            FCA_ 200ul SBS[001] B10", "3 Aspirate 4 Well SBS Trough[001] A1: 90 ul (takes up 116.97 ul)" (from its
+            log; also in the record).
         """
         from .smart_xml import reagent_distribution_xml
 
@@ -662,13 +699,15 @@ class LiquidHandling(sila.Feature):
         except (BackendError, DefinitionCheckFailed) as exc:
             raise LiquidHandlingFailed(str(exc)) from None
         extra["labware_pictures"] = {source: source_geo, target: target_geo}
+        post, result = self._expansion_reader()
         await self._send(f"ReagentDistribution {volume:g} ul {source} {source_well} -> {target} "
-                         f"{len(target_wells)} wells ({liquid_class}, {tip_type})", xml, status, extra)
+                         f"{len(target_wells)} wells ({liquid_class}, {tip_type})", xml, status, extra, post)
+        return result["steps"]
 
     @sila.ObservableCommand(errors=[LiquidHandlingFailed])
     async def transfer_samples(self, source: str, source_wells: list[str], target: str, target_wells: list[str],
                                volume: float, liquid_class: str, tip_type: str, channels: list[int], *,
-                               status: sila.Status) -> None:
+                               status: sila.Status) -> list[str]:
         """
         Move the same volume from each source well to the target well at the same place in the lists, with a new tip
         for every sample (FluentControl's Sample Transfer, used by 06). MOVES the arm.
@@ -682,6 +721,9 @@ class LiquidHandling(sila.Feature):
           LiquidClass: Liquid class, e.g. "Water Free Single".
           TipType: e.g. "FCA, 200ul SBS".
           Channels: Channels 1-8 to use.
+
+        Returns:
+          Steps: What FluentControl did, one line per expanded step (tips taken, wells, volumes), from its log.
         """
         from .smart_xml import sample_transfer_xml
 
@@ -699,14 +741,16 @@ class LiquidHandling(sila.Feature):
         except (BackendError, DefinitionCheckFailed) as exc:
             raise LiquidHandlingFailed(str(exc)) from None
         extra["labware_pictures"] = {source: source_geo, target: target_geo}
+        post, result = self._expansion_reader()
         await self._send(f"SampleTransfer {volume:g} ul {source} -> {target} {len(source_wells)} samples "
-                         f"({liquid_class}, {tip_type})", xml, status, extra)
+                         f"({liquid_class}, {tip_type})", xml, status, extra, post)
+        return result["steps"]
 
     @sila.ObservableCommand(errors=[LiquidHandlingFailed])
     async def transfer_individual_volumes(self, source: str, target: str, source_wells: list[str],
                                           target_wells: list[str], volumes: list[float], liquid_class: str,
                                           tip_type: str, channels: list[int], max_tip_reuse: int,
-                                          max_multi_dispense: int, *, status: sila.Status) -> str:
+                                          max_multi_dispense: int, *, status: sila.Status) -> tuple[str, list[str]]:
         """
         Move a different volume for each pair of wells (FluentControl's Transfer Individual Volumes, used by 04). The
         lists are written to a file in the run's record, which FluentControl reads. MOVES the arm.
@@ -725,6 +769,7 @@ class LiquidHandling(sila.Feature):
 
         Returns:
           File: The volume list on the Fluent PC.
+          Steps: What FluentControl did, one line per expanded step (tips taken, wells, volumes), from its log.
         """
         from .smart_xml import individual_volumes_file, individual_volumes_xml
 
@@ -748,14 +793,15 @@ class LiquidHandling(sila.Feature):
         except (BackendError, DefinitionCheckFailed) as exc:
             raise LiquidHandlingFailed(str(exc)) from None
         extra.update({"volume_file": path, "volume_file_text": text})
+        post, result = self._expansion_reader()
         await self._send(f"TransferIndividualVolumes {source} -> {target} {len(volumes)} transfers "
-                         f"({liquid_class}, {tip_type})", xml, status, extra)
-        return path
+                         f"({liquid_class}, {tip_type})", xml, status, extra, post)
+        return path, result["steps"]
 
     @sila.ObservableCommand(errors=[LiquidHandlingFailed])
     async def run_worklist(self, source_labware: list[str], source_wells: list[str], target_labware: list[str],
                            target_wells: list[str], volumes: list[float], tip_type: str, liquid_class: str,
-                           channels: list[int], *, status: sila.Status) -> str:
+                           channels: list[int], *, status: sila.Status) -> tuple[str, list[str]]:
         """
         Pipette a list of transfers as a FluentControl worklist (as 02, 05 and 07 do with a CSV file chosen on the
         instrument PC). Each line moves a volume from a source well to a target well, with a new tip per line.
@@ -773,6 +819,7 @@ class LiquidHandling(sila.Feature):
 
         Returns:
           File: The CSV on the Fluent PC.
+          Steps: What FluentControl did, one line per step of the worklist (tips taken, wells, volumes), from its log.
         """
         from .smart_xml import worklist_csv, worklist_xml
 
@@ -795,12 +842,13 @@ class LiquidHandling(sila.Feature):
         except (BackendError, DefinitionCheckFailed) as exc:
             raise LiquidHandlingFailed(str(exc)) from None
         extra.update({"worklist_file": csv_path, "worklist_text": text, "worklist_labware": types})
+        post, result = self._expansion_reader()
         try:
             await _with_progress(status, len(steps), lambda report: self.backend.run_steps(
-                steps, report, f"Worklist {n} lines ({liquid_class}, {tip_type})", extra))
+                steps, report, f"Worklist {n} lines ({liquid_class}, {tip_type})", extra, post))
         except BackendError as exc:
             raise LiquidHandlingFailed(str(exc)) from None
-        return csv_path
+        return csv_path, result["steps"]
 
     @sila.UnobservableProperty()
     async def get_mounted_tips(self) -> list[str]:

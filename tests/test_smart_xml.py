@@ -185,13 +185,13 @@ def test_the_commands_in_a_dry_run():
                                     "FCA, 200ul SBS", [1, 2, 3], 1, 1, status=S)
         await lh.transfer_samples("Plate[001]", ["A1", "B1"], "Plate[001]", ["A2", "B2"], 20, "Water Free Single",
                                   "FCA, 200ul SBS", [1, 2], status=S)
-        path = await lh.transfer_individual_volumes("Water[001]", "Plate[001]", ["A1", "A1"], ["A3", "B3"], [10, 20],
+        path, _ = await lh.transfer_individual_volumes("Water[001]", "Plate[001]", ["A1", "A1"], ["A3", "B3"], [10, 20],
                                                     "Water Free Single", "FCA, 200ul SBS", [1, 2], 1, 1, status=S)
         assert path.endswith("individual_volumes.csv") and "\\files\\" in path
         with pytest.raises(LiquidHandlingFailed, match="outside the labware"):
             await lh.run_worklist(["Water[001]"], ["A5"], ["Plate[001]"], ["A4"], [20], "FCA, 200ul SBS",
                                   "Water Free Single", [1], status=S)
-        path = await lh.run_worklist(["Water[001]", "Water[001]"], ["A1", "A1"], ["Plate[001]", "Plate[001]"],
+        path, _ = await lh.run_worklist(["Water[001]", "Water[001]"], ["A1", "A1"], ["Plate[001]", "Plate[001]"],
                                      ["A4", "B4"], [20, 30], "FCA, 200ul SBS", "Water Free Single", [1], status=S)
         assert path.endswith("worklist.csv")
         # 2 AddLabware, filter check, error handling, GetTips, DetectLiquid, DropTips, 3 Smart Commands, worklist
@@ -232,3 +232,25 @@ def test_log_readers():
 
     assert "detected volume" in DETECTED_VOLUMES_PS1
     assert "Channel \\d+ : Filter" in FILTER_RESULTS_PS1 and "detected volume" not in FILTER_RESULTS_PS1
+
+
+def test_what_fluentcontrol_expanded_is_read_from_its_log():
+    from riken_odtc_connector.fc_log import describe, expanded_steps
+
+    rows = lambda lw: 8 if ("Plate" in lw or lw.startswith("FCA_")) else (1 if "Trough" in lw else None)
+    fix = pathlib.Path(__file__).parent / "fixtures"
+    # Reagent Distribution, 3 x 30 ul per aspiration with Water Free Multi (2026-10-16 14:28)
+    steps = expanded_steps((fix / "fc_log_distribute_multi.txt").read_text(encoding="utf-8"))
+    assert describe(steps, rows) == [
+        "1 Drop Tips", "2 Get Tips from FCA_ 200ul SBS[001] B10",
+        "3 Aspirate 4 Well SBS Trough[001] A1: 90 ul (takes up 116.97 ul)",
+        "4 Dispense TestPlate[001] A6: 30 ul", "5 Dispense TestPlate[001] B6: 30 ul",
+        "6 Dispense TestPlate[001] C6: 30 ul", "7 Empty Tip Contents 4 Well SBS Trough[001] A1",
+        "8 Drop Tips FCA Thru Deck Waste Chute_1"]
+    assert steps[2]["liquid_class"].startswith("Water Free Multi") and steps[2]["aspirated"] == {1: 116.97}
+    # a worklist of two lines (14:45)
+    lines = describe(expanded_steps((fix / "fc_log_worklist.txt").read_text(encoding="utf-8")), rows)
+    assert lines[1:4] == ["2 Get Tips from FCA_ 200ul SBS[001] F10",
+                          "3 Aspirate 4 Well SBS Trough[001] A1: 20 ul (takes up 22.29 ul)",
+                          "4 Dispense TestPlate[001] A5: 20 ul"]
+    assert lines[7] == "8 Dispense TestPlate[001] B5: 30 ul"

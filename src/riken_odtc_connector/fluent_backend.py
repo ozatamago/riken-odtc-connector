@@ -206,7 +206,7 @@ class FluentOdtcBackend:
     def _run_macro(self, name: str, settings: str | None, report) -> float:
         return self._run_steps([(name, odtc_macro_xml(name, settings))], report)[0]
 
-    def _run_steps(self, steps: list[tuple[str, str]], report, extra: dict | None = None) -> list[float]:
+    def _run_steps(self, steps: list[tuple[str, str]], report, extra: dict | None = None, post=None) -> list[float]:
         """Send XML commands in order. Returns the seconds each command took.
 
         Before sending, every definition the commands use is checked and recorded (refused if missing or changed).
@@ -241,7 +241,14 @@ class FluentOdtcBackend:
         except Exception as exc:
             record.finish({"status": "failed", "error": f"{type(exc).__name__}: {exc}"})
             raise
-        record.finish({"status": "ok", "seconds": durations, "in_open_run": bool(self._session)})
+        result = {"status": "ok", "seconds": durations, "in_open_run": bool(self._session)}
+        if post is not None and not self.config.dry_run:
+            # e.g. what FluentControl's log says the commands did; added to the record, never fails the operation
+            try:
+                result.update(post())
+            except Exception as exc:  # noqa: BLE001
+                result["post_error"] = f"{type(exc).__name__}: {exc}"
+        record.finish(result)
         if not self.config.dry_run:
             self.preflight.forget_dry_runs()  # dry-run records are only kept until a real operation has run
         return durations
@@ -387,12 +394,12 @@ class FluentOdtcBackend:
             return await asyncio.to_thread(self._guarded, self._run_macro, name, settings, report)
 
     async def run_steps(self, steps: list[tuple[str, str]], report=lambda _: None, what: str = "",
-                        extra: dict | None = None) -> list[float]:
+                        extra: dict | None = None, post=None) -> list[float]:
         """Send several XML commands in order within one run (e.g. load, measure and unload in a single run).
         extra is added to the record's manifest (e.g. the liquid class settings used)."""
         what = what or (steps[0][0] if len(steps) == 1 else f"{steps[0][0]} and {len(steps) - 1} more commands")
         async with self._exclusive(what):
-            return await asyncio.to_thread(self._guarded, self._run_steps, steps, report, extra)
+            return await asyncio.to_thread(self._guarded, self._run_steps, steps, report, extra, post)
 
     @contextlib.asynccontextmanager
     async def _exclusive(self, what: str):
