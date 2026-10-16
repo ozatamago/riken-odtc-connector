@@ -20,6 +20,7 @@ The record of each command gets the liquid class settings for the mounted tip ty
 detection, positions) under "liquid_class_settings".
 """
 
+import asyncio
 import pathlib
 import re
 
@@ -37,6 +38,17 @@ TIP_TYPES = ("FCA, 10ul SBS", "FCA, 50ul SBS", "FCA, 200ul SBS", "FCA, 200ul Fil
 BAD_RACKS = {"FCA_ 1000ul SBS[001]": "the tips in this rack do not fit and fell off (August 2026); use FCA_ 1000ul SBS[002]"}
 WASTE = "FCA Thru Deck Waste Chute_1"
 TIP_SPACING = 9  # mm; every verified and GUI statement on 96-well plates and troughs uses 9
+
+
+DETECTED_VOLUMES_PS1 = r"""
+$d = 'C:\ProgramData\Tecan\LoggingServer\LogFiles'
+$f = Get-ChildItem "$d\*.ulf" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$fs = [System.IO.File]::Open($f.FullName, 'Open', 'Read', 'ReadWrite'); $t = (New-Object System.IO.StreamReader($fs)).ReadToEnd(); $fs.Close()
+foreach ($m in [regex]::Matches($t, 'TimeStamp="([0-9-]+ [0-9:.]+)"[^>]*Message="channel (\d+): detected volume ([0-9.]+) ul')) {
+  if ($m.Groups[1].Value -ge '__SINCE__') { $m.Groups[2].Value + ' ' + $m.Groups[3].Value }
+}
+"""
+"""Reads FluentControl's log on the Fluent PC for the volumes Detect Liquid found (the statement returns nothing)."""
 
 
 class LiquidHandlingFailed(Exception):
@@ -433,7 +445,8 @@ class LiquidHandling(sila.Feature):
         await self._send(f"InlineFilterCheck ch{channels}", inline_filter_check_xml(channels), status)
 
     @sila.ObservableCommand(errors=[LiquidHandlingFailed])
-    async def detect_liquid(self, labware: str, wells: list[str], channels: list[int], *, status: sila.Status) -> None:
+    async def detect_liquid(self, labware: str, wells: list[str], channels: list[int], *,
+                            status: sila.Status) -> list[float]:
         """
         Check that there is liquid in the given wells with the mounted tips (liquid level detection, as 02 does before
         pipetting primers). Fails if FluentControl reports an error. MOVES the arm.
@@ -442,6 +455,10 @@ class LiquidHandling(sila.Feature):
           Labware: Labware to check, e.g. "4 Well SBS Trough[001]".
           Wells: One well per channel, e.g. ["A1"].
           Channels: Channels 1-8 with tips, e.g. [1].
+
+        Returns:
+          DetectedVolumes: Volume in each well in ul, as FluentControl computes it from the liquid level and the well
+            shape (read from FluentControl's log; -1 if it could not be read).
         """
         from .smart_xml import detect_liquid_xml
 
@@ -459,7 +476,37 @@ class LiquidHandling(sila.Feature):
             xml = detect_liquid_xml(labware, wells, channels, geo["ycount"], geo["xcount"], spacing)
         except (BackendError, DefinitionCheckFailed) as exc:
             raise LiquidHandlingFailed(str(exc)) from None
+        pc = self.pc or self.backend.preflight.pc
+        since = "" if self.backend.config.dry_run else self._pc_time(pc)
         await self._send(f"DetectLiquid {labware} {','.join(wells)} ch{channels}", xml, status)
+        if self.backend.config.dry_run:
+            return [-1.0 for _ in channels]
+        found = await asyncio.to_thread(self._detected_volumes, pc, since)
+        return [found.get(c - 1, -1.0) for c in channels]
+
+    @staticmethod
+    def _pc_time(pc) -> str:
+        try:
+            return pc.run_ps("Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'", 60).decode("utf-8-sig").strip()
+        except Exception:  # noqa: BLE001 - only the result reading suffers
+            return ""
+
+    @staticmethod
+    def _detected_volumes(pc, since: str) -> dict[int, float]:
+        """Volumes FluentControl logged ("channel 0: detected volume 33940.72 ul", 2026-10-16) since a PC time."""
+        if not since:
+            return {}
+        script = DETECTED_VOLUMES_PS1.replace("__SINCE__", since)
+        try:
+            text = pc.run_ps(script, 120).decode("utf-8-sig", errors="replace")
+        except Exception:  # noqa: BLE001
+            return {}
+        found: dict[int, float] = {}
+        for line in text.splitlines():
+            parts = line.split()
+            if len(parts) == 2:
+                found[int(parts[0])] = float(parts[1])  # the last detection of a channel wins
+        return found
 
     @sila.ObservableCommand(errors=[LiquidHandlingFailed])
     async def set_liquid_detection_error_handling(self, aspirate: str, contact_dispense: str,
