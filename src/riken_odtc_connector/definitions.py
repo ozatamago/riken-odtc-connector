@@ -414,7 +414,7 @@ class Preflight:
         self._workspace_cache = (sha, result)
         return result
 
-    def begin(self, steps: list[tuple[str, str]], what: str, session: str = "") -> "RunRecord":
+    def begin(self, steps: list[tuple[str, str]], what: str, session: str = "", extra: dict | None = None) -> "RunRecord":
         """Check everything the steps use and start the record. Raises DefinitionCheckFailed to refuse.
 
         session is the relative folder of an open run (StartRun); the record goes inside it."""
@@ -429,7 +429,7 @@ class Preflight:
                 merged.setdefault(kind, set()).update(tuple(v) if isinstance(v, (list, tuple)) else v for v in values)
         refs = {k: sorted(v) for k, v in merged.items()}
         manifest: dict = {"operation": what, "time": stamp, "dry_run": self.dry_run, "references": refs,
-                          "definitions": [], "warnings": [], "first_seen": []}
+                          "definitions": [], "warnings": [], "first_seen": [], **(extra or {})}
         self.last_record = self.location(remote_rel)
         if not self.config.enabled:
             manifest["warnings"].append("definition check disabled in the configuration")
@@ -562,3 +562,32 @@ class RunRecord:
 
     def discard(self) -> None:
         shutil.rmtree(self._tmp, ignore_errors=True)
+
+
+# ---------------------------------------------------------------- liquid class settings for one tip type
+EQ_FIELDS = ("AspiratePipettingSpeed", "DispensePipettingSpeed", "DelayAfterAspiration", "LeadingAirgapVolumeFormular",
+             "TrailingAirgapVolumeFormular", "ExcessVolumeFormular", "ConditioningVolumeFormular", "CorrectionVolumeFormular")
+DET_FIELDS = ("cLLDOnOff", "clldSensitivity", "submergeDepth", "aspirationTrackingOnOff", "dispenseTrackingOnOff",
+              "zPosition", "zOffset", "retractPosition", "retractPositionOffset", "retractSpeed", "moveSpeedOutOfWell",
+              "density", "viscosity")
+
+
+def liquid_class_settings(xml: bytes, tip_group: str, part: str = ARM_LIQUID_CLASS_PART) -> dict | None:
+    """Main values of a liquid class for one tip group (e.g. "FCA DiTi 200µl") and pipetting device. None when the
+    liquid class has no equation set for that tip group (FluentControl would have nothing to compute volumes with)."""
+    t = xml.decode("utf-8-sig", errors="replace")
+    dev = f"<PipettingDeviceType>{part}</PipettingDeviceType>"
+    u = html.unescape
+    grp = f"<DiTiTypeGroup>{tip_group}</DiTiTypeGroup>"
+    eq = [b for b in re.findall(r"<Tecan.Core.Pipetting.LiquidClassEquationSet>(.*?)</Tecan.Core.Pipetting.LiquidClassEquationSet>", t, re.S)
+          if dev in b and grp in b]
+    if not eq:
+        return None
+    out: dict = {"tip_group": tip_group, "device": part,
+                 "equations": {k: u(v) for k, v in re.findall(r"<(\w+)>([^<]*)</\1>", eq[0]) if k in EQ_FIELDS}}
+    for b in re.findall(r"<Tecan.Core.Pipetting.LiquidClassDetectionAndPositioningSet>(.*?)</Tecan.Core.Pipetting.LiquidClassDetectionAndPositioningSet>", t, re.S):
+        if dev in b and grp in b:
+            section = (re.search(r"<PipettingSectionName>(\w+)</PipettingSectionName>", b) or [None, "?"])[1]
+            pairs = re.findall(r"<Value>([^<]*)</Value>\s*<VariableName>([^<]*)</VariableName>", b)
+            out[section.lower()] = {name: u(value) for value, name in pairs if name in DET_FIELDS}
+    return out

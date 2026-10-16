@@ -21,7 +21,7 @@ def backends_of(feature):
 def test_all_features_are_there_with_unique_names():
     names = [type(f).__name__ for f in build_features(Fluent780ConnectorConfig())]
     assert names == [
-        "RgaController", "LabwareController",
+        "RgaController", "LabwareController", "LiquidHandling",
         "DoorController", "MethodController", "TemperatureController",
         "TrayController", "AbsorbanceReader", "FluentPlateHandling",
         "BioShakeController", "ShakingIncubatorController", "TemperaturePositionController", "Incubator1Controller",

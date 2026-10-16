@@ -120,6 +120,7 @@ class LabwareController(sila.Feature):
         self._check(label)
         await self._send(f"AddLabware {label} ({labware_type}) at {location}[{site}]",
                          add_labware_xml(labware_type, label, location, site), status)
+        self.backend.session_labware[label] = labware_type
 
     @sila.ObservableCommand(errors=[LabwareCommandFailed])
     async def remove_labware(self, label: str, *, status: sila.Status) -> None:
@@ -131,6 +132,7 @@ class LabwareController(sila.Feature):
         """
         self._check(label)
         await self._send(f"RemoveLabware {label}", remove_labware_xml(label), status)
+        self.backend.session_labware.pop(label, None)
 
     @sila.ObservableCommand(errors=[LabwareCommandFailed])
     async def transfer_labware(self, labware: str, location: str, site: int, *, status: sila.Status) -> None:

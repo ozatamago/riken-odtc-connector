@@ -140,6 +140,10 @@ class FluentOdtcBackend:
         self.current_operation = ""
         """Description of the operation currently running (e.g. "ODTC: SiLA-ODTC_OpenDoor"). Empty when idle."""
         self.preflight = Preflight(config.definitions, config.dry_run)
+        self.session_labware: dict[str, str] = {}
+        """Labware added with AddLabware in the open run: label -> labware type."""
+        self.tips: dict[int, dict] = {}
+        """Tips mounted in the open run: channel (1-8) -> {"type", "group", "capacity", "aspirated", "volume"}."""
         self._session = None
         """Run opened by StartRun: {"rel": records folder, "started": str, "commands": int}. None when none is open."""
 
@@ -200,7 +204,7 @@ class FluentOdtcBackend:
     def _run_macro(self, name: str, settings: str | None, report) -> float:
         return self._run_steps([(name, odtc_macro_xml(name, settings))], report)[0]
 
-    def _run_steps(self, steps: list[tuple[str, str]], report) -> list[float]:
+    def _run_steps(self, steps: list[tuple[str, str]], report, extra: dict | None = None) -> list[float]:
         """Send XML commands in order. Returns the seconds each command took.
 
         Before sending, every definition the commands use is checked and recorded (refused if missing or changed).
@@ -211,7 +215,7 @@ class FluentOdtcBackend:
         what = self.current_operation or steps[0][0]
         session = self._session["rel"] if self._session else ""
         try:
-            record = self.preflight.begin(steps, what, session)
+            record = self.preflight.begin(steps, what, session, extra)
         except DefinitionCheckFailed as exc:
             raise BackendError(str(exc)) from None
         if self._session:
@@ -316,6 +320,8 @@ class FluentOdtcBackend:
             self._open_run(report)
         started = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         self._session = {"rel": self._session_rel(started), "started": started, "commands": 0}
+        self.session_labware = {}
+        self.tips = {}
         self._write_session({"started": started, "dry_run": self.config.dry_run})
         return self.preflight.location(self._session["rel"])
 
@@ -324,6 +330,8 @@ class FluentOdtcBackend:
 
         if not self._session:
             raise BackendError("No run is open")
+        if self.tips:
+            raise BackendError(f"Tips are still mounted on channels {sorted(self.tips)}: drop them first (DropTips)")
         session, self._session = self._session, None
         if not self.config.dry_run:
             self._close_run(report)
@@ -355,11 +363,13 @@ class FluentOdtcBackend:
         async with self._exclusive(f"ODTC: {name}" + (f" {settings}" if settings else "")):
             return await asyncio.to_thread(self._guarded, self._run_macro, name, settings, report)
 
-    async def run_steps(self, steps: list[tuple[str, str]], report=lambda _: None, what: str = "") -> list[float]:
-        """Send several XML commands in order within one run (e.g. load, measure and unload in a single run)."""
+    async def run_steps(self, steps: list[tuple[str, str]], report=lambda _: None, what: str = "",
+                        extra: dict | None = None) -> list[float]:
+        """Send several XML commands in order within one run (e.g. load, measure and unload in a single run).
+        extra is added to the record's manifest (e.g. the liquid class settings used)."""
         what = what or (steps[0][0] if len(steps) == 1 else f"{steps[0][0]} and {len(steps) - 1} more commands")
         async with self._exclusive(what):
-            return await asyncio.to_thread(self._guarded, self._run_steps, steps, report)
+            return await asyncio.to_thread(self._guarded, self._run_steps, steps, report, extra)
 
     @contextlib.asynccontextmanager
     async def _exclusive(self, what: str):
