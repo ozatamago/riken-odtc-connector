@@ -17,5 +17,7 @@ if (-not (Test-Path $uv)) { $uv = 'uv' }
 New-Item -ItemType Directory -Force $LogDir | Out-Null
 $log = Join-Path $LogDir ('server_' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
 Set-Location $Root
-"started $(Get-Date -Format s) by $env:USERNAME (session $((Get-Process -Id $PID).SessionId))" | Out-File -Encoding utf8 $log
-& $uv run connector start --app riken_odtc_connector.fluent780:create_app -cfg $Config *>> $log
+"started $(Get-Date -Format s) by $env:USERNAME (session $((Get-Process -Id $PID).SessionId))" | Out-File -Encoding ascii $log
+# cmd writes the output as it comes (UTF-8 bytes); PowerShell's own redirection writes UTF-16 and reports the
+# server's log lines on stderr as errors
+cmd /c "`"$uv`" run connector start --app riken_odtc_connector.fluent780:create_app -cfg `"$Config`" >> `"$log`" 2>&1"

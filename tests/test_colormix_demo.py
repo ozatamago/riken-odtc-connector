@@ -27,8 +27,8 @@ def test_one_column_is_four_rounds_of_eight_channels():
 
 
 def test_wells_are_checked():
-    with pytest.raises(DemoFailed, match="one red, one yellow and one blue"):
-        plan_wells(["A1"], [1, 2], [0], [0], 150)
+    with pytest.raises(DemoFailed, match="one red volume per well"):
+        plan_wells(["A1", "B1", "C1"], [1, 2], [0], [0], 150)
     with pytest.raises(DemoFailed, match="more than 300"):
         plan_wells(["A1"], [100], [0], [100], 150)
     with pytest.raises(DemoFailed, match="only once"):
@@ -80,3 +80,11 @@ def test_the_command_in_a_dry_run(monkeypatch):
             await demo.mix_colors_and_measure(["A1"], [200], [0], [0], 150, status=_S())
 
     asyncio.run(scenario())
+
+
+def test_input_as_typed_into_the_unitelabs_app():
+    # 2026-10-16: the whole list typed into one field, one 0.0 per colour
+    planned = plan_wells(['["A1", "B1", "C1", "D1", "E1", "F1", "G1", "H1"]'], [0.0], [0.0], [], 150)
+    assert [p.well for p in planned] == COLUMN_1
+    assert all(p.volumes == {"water": 150.0, "red": 0.0, "yellow": 0.0, "blue": 0.0} for p in planned)
+    assert [p.well for p in plan_wells(["a1, b1", "C1"], [10], [0], [0], 0)] == ["A1", "B1", "C1"]

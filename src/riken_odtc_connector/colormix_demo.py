@@ -47,12 +47,30 @@ class PlannedWell:
     volumes: dict  # liquid -> ul
 
 
+def split_wells(wells: list[str]) -> list[str]:
+    """Well names; an entry may also hold several, as typed into one field of the UniteLabs App
+    ('["A1", "B1"]' or "A1, B1" arrived as a single well on 2026-10-16)."""
+    import re
+
+    return [w.upper() for entry in wells for w in re.split(r"[\s,;]+", re.sub(r"[\[\]\"']", " ", entry)) if w]
+
+
+def per_well(values: list[float], n: int, name: str) -> list[float]:
+    """One value per well; a single value is used for every well, none means 0."""
+    if not values:
+        return [0.0] * n
+    if len(values) == 1:
+        return [float(values[0])] * n
+    if len(values) != n:
+        raise DemoFailed(f"Give one {name} volume per well ({n}), or a single volume for all wells")
+    return [float(v) for v in values]
+
+
 def plan_wells(wells: list[str], red: list[float], yellow: list[float], blue: list[float], water: float) -> list[PlannedWell]:
-    if not wells:
+    names = split_wells(wells)
+    if not names:
         raise DemoFailed("Give at least one well")
-    if not (len(wells) == len(red) == len(yellow) == len(blue)):
-        raise DemoFailed("Give one red, one yellow and one blue volume per well (0 for none)")
-    names = [w.strip().upper() for w in wells]
+    red, yellow, blue = (per_well(v, len(names), n) for v, n in ((red, "red"), (yellow, "yellow"), (blue, "blue")))
     if len(set(names)) != len(names):
         raise DemoFailed("Each well may appear only once")
     out = []
@@ -134,10 +152,10 @@ class ColorMixDemo(sila.Feature):
 
         Args:
           Wells: Wells to fill, e.g. ["A1", "B1", "C1", "D1", "E1", "F1", "G1", "H1"] (one column takes a few
-            minutes).
-          Red: Red dye per well in ul (0 for none), one per well.
-          Yellow: Yellow dye per well in ul, one per well.
-          Blue: Blue dye per well in ul, one per well.
+            minutes). One entry may also hold several, e.g. "A1, B1, C1".
+          Red: Red dye in ul, one per well, or a single value for every well (empty or 0 for none).
+          Yellow: Yellow dye in ul, as Red.
+          Blue: Blue dye in ul, as Red.
           Water: Water per well in ul, e.g. 150 (0 for none). At most 300 ul in a well altogether.
 
         Returns:

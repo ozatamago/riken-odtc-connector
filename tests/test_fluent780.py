@@ -1,7 +1,6 @@
 """Checks the assembly of the combined "Tecan Fluent 780" server. Connects to neither the devices nor the Fluent."""
 
 import asyncio
-
 import os
 
 import pytest
