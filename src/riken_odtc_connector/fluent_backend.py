@@ -305,6 +305,7 @@ class FluentOdtcBackend:
         folder = pathlib.Path(self.preflight.dir) / "runs" / f"{started}_session{'_dry-run' if self.config.dry_run else ''}"
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "session.json").write_text(json.dumps({"started": started, "dry_run": self.config.dry_run}))
+        self.preflight.publish(folder / "session.json")
         self._session = {"folder": folder, "started": started, "commands": 0}
         return str(folder)
 
@@ -320,6 +321,7 @@ class FluentOdtcBackend:
         info = json.loads((session["folder"] / "session.json").read_text())
         info.update(ended=datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), commands=session["commands"])
         (session["folder"] / "session.json").write_text(json.dumps(info))
+        self.preflight.publish(session["folder"] / "session.json")
         return session["commands"]
 
     async def start_run(self, report=lambda _: None) -> str:

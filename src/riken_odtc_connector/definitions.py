@@ -16,8 +16,12 @@ How it works
    If a file changed since it was last accepted, the operation is refused and the change is listed. After checking,
    ``accept_pending_changes`` accepts it and the operation can be sent again. Files seen for the first time are
    accepted and noted in the record.
-4. A record folder ``<record_dir>/runs/<time>_<operation>/`` gets the XML sent, ``manifest.json`` (each name, the file
-   it resolved to, its hash and key values), copies of the definition files, and ``result.json`` when it finishes.
+4. A record folder ``runs/<time>_<operation>/`` gets the XML sent, ``manifest.json`` (each name, the file it resolved
+   to, its hash and key values), copies of the definition files, and ``result.json`` when it finishes.
+5. Records are kept on the Fluent PC (``remote_record_dir``, 2026-10-16: the lab wants them next to the instrument).
+   Each record is written locally first and copied there as soon as it finishes. If the copy fails, the record stays
+   in ``<record_dir>/runs`` with an ``.upload_failed`` mark and is copied again before the next operation.
+   Dry runs never contact the Fluent PC, so their records stay local.
 """
 
 import dataclasses
@@ -66,6 +70,8 @@ class DefinitionsConfig(Config):
     workspace: str = "WT2411004293_Ver.0.5_OFML"
     """Worktable used by OFML_ApiHost. Locations are checked against it."""
     ssh_target: str = "Tecan@10.5.1.156"
+    remote_record_dir: str = r"C:\Users\Tecan\OFML_records"
+    """Where records are kept on the Fluent PC (runs/ below it). Empty: keep records only on this computer."""
 
 
 # ---------------------------------------------------------------- names used by an XML command
@@ -295,6 +301,35 @@ class Preflight:
         """Changes found by the last refused check: relative path -> {name, accepted, now}."""
         self.last_record = ""
 
+    # ---- keeping records on the Fluent PC
+    def _remote_path(self, local: pathlib.Path) -> str:
+        rel = local.relative_to(self.dir).as_posix()
+        return self.config.remote_record_dir.rstrip("\\") + "\\" + rel.replace("/", "\\")
+
+    def publish(self, local: pathlib.Path) -> None:
+        """Copy a finished record (folder or file) to the Fluent PC. Never raises; marks the record on failure."""
+        if self.dry_run or not self.config.remote_record_dir or not self.config.enabled:
+            return
+        mark = (local if local.is_dir() else local.parent) / ".upload_failed"
+        try:
+            parent = self._remote_path(local.parent)
+            self.mirror._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{parent}\' | Out-Null"')
+            out = subprocess.run(["scp", "-q", "-r", str(local), f"{self.config.ssh_target}:{parent.replace(chr(92), '/')}/"],
+                                 capture_output=True, timeout=600)
+            if out.returncode != 0:
+                raise DefinitionCheckFailed(out.stderr.decode(errors="replace")[:300])
+            mark.unlink(missing_ok=True)
+        except Exception as exc:  # noqa: BLE001 - the operation itself succeeded; keep the record and retry later
+            mark.write_text(f"{datetime.datetime.now().isoformat(timespec='seconds')} {exc}")
+
+    def publish_pending(self) -> None:
+        """Copy records whose earlier copy to the Fluent PC failed."""
+        if self.dry_run or not self.config.remote_record_dir:
+            return
+        for mark in sorted((self.dir / "runs").rglob(".upload_failed")):
+            mark.unlink()
+            self.publish(mark.parent)
+
     def _baseline(self) -> dict[str, str]:
         return json.loads(self.baseline_path.read_text()) if self.baseline_path.exists() else {}
 
@@ -315,7 +350,8 @@ class Preflight:
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3]
         slug = re.sub(r"[^A-Za-z0-9._-]+", "_", what)[:60].strip("_") or "operation"
         folder = (parent or self.dir / "runs") / f"{stamp}_{slug}"
-        record = RunRecord(folder)
+        self.publish_pending()
+        record = RunRecord(folder, on_finish=self.publish)
         record.write_steps(steps)
         merged: dict[str, set] = {}
         for _, xml in steps:
@@ -416,8 +452,9 @@ class Preflight:
 class RunRecord:
     """One folder per operation: the XML sent, the definitions used, and the result."""
 
-    def __init__(self, folder: pathlib.Path):
+    def __init__(self, folder: pathlib.Path, on_finish=None):
         self.folder = folder
+        self.on_finish = on_finish
         folder.mkdir(parents=True, exist_ok=True)
 
     def write_steps(self, steps: list[tuple[str, str]]) -> None:
@@ -439,3 +476,5 @@ class RunRecord:
     def finish(self, result: dict) -> None:
         result = {"finished": datetime.datetime.now().isoformat(timespec="seconds"), **result}
         (self.folder / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
+        if self.on_finish:
+            self.on_finish(self.folder)
