@@ -50,6 +50,11 @@ foreach ($m in [regex]::Matches($t, 'TimeStamp="([0-9-]+ [0-9:.]+)"[^>]*Message=
 """
 """Reads FluentControl's log on the Fluent PC for the volumes Detect Liquid found (the statement returns nothing)."""
 
+FILTER_RESULTS_PS1 = DETECTED_VOLUMES_PS1.replace(
+    "Message=\"channel (\\d+): detected volume ([0-9.]+) ul')) {", "Message=\"(Channel \\d+ : Filter [^\"]*)')) {").replace(
+    "{ $m.Groups[2].Value + ' ' + $m.Groups[3].Value }", "{ $m.Groups[2].Value }")
+"""The same for the verdicts of the inline filter check ("Channel 1 : Filter OK (passed) (...)", 2026-10-16)."""
+
 
 def _evaluate(formula: str, volume: float) -> float | None:
     """A liquid-class formula that only uses numbers, + - * / and "volume" (e.g. "0.25*volume"); None otherwise."""
@@ -94,9 +99,10 @@ def corrected_volume(formula: str, volume: float) -> float:
 
 def planned_aspiration(equations: dict, volume: float, dispenses: int) -> dict:
     """What one aspiration for `dispenses` dispenses of `volume` takes up, from the liquid class equations: the
-    corrected volume of each dispense plus the excess volume (Water Free Multi: 25 %) and conditioning volume."""
+    dispensed volume corrected as a whole, plus the excess volume (Water Free Multi: 25 %) and conditioning volume.
+    FluentControl aspirated 116.97 ul for 3 x 30 ul with Water Free Multi (94.47 + 22.5; 2026-10-16)."""
     total = volume * dispenses
-    corrected = corrected_volume(equations.get("CorrectionVolumeFormular", ""), volume) * dispenses
+    corrected = corrected_volume(equations.get("CorrectionVolumeFormular", ""), total)
     excess = _evaluate(equations.get("ExcessVolumeFormular", "0") or "0", total)
     conditioning = _evaluate(equations.get("ConditioningVolumeFormular", "0") or "0", total)
     known = excess is not None and conditioning is not None
@@ -492,18 +498,31 @@ class LiquidHandling(sila.Feature):
         return path
 
     @sila.ObservableCommand(errors=[LiquidHandlingFailed])
-    async def check_inline_filters(self, channels: list[int], *, status: sila.Status) -> None:
+    async def check_inline_filters(self, channels: list[int], *, status: sila.Status) -> list[str]:
         """
         Check the inline filters of the given channels (FluentControl's Inline Filter Check, used by 02).
 
         Args:
           Channels: Channels 1-8 to check, e.g. [1, 2, 3, 4, 5, 6, 7, 8].
+
+        Returns:
+          Results: FluentControl's verdict per channel, e.g. "Channel 1 : Filter OK (passed) (relative filter
+            resistance = 1.31 ...)", read from its log (a pressure test; the arm does not move).
         """
         from .smart_xml import inline_filter_check_xml
 
         self._need_run()
         channels = self._channels(channels)
+        pc = self.pc or self.backend.preflight.pc
+        since = "" if self.backend.config.dry_run else self._pc_time(pc)
         await self._send(f"InlineFilterCheck ch{channels}", inline_filter_check_xml(channels), status)
+        if self.backend.config.dry_run or not since:
+            return []
+        try:
+            text = await asyncio.to_thread(pc.run_ps, FILTER_RESULTS_PS1.replace("__SINCE__", since), 120)
+        except Exception:  # noqa: BLE001 - the check itself passed; only reading the verdict failed
+            return []
+        return [ln.strip() for ln in text.decode("utf-8-sig", errors="replace").splitlines() if ln.strip()]
 
     @sila.ObservableCommand(errors=[LiquidHandlingFailed])
     async def detect_liquid(self, labware: str, wells: list[str], channels: list[int], *,

@@ -207,7 +207,7 @@ def test_planned_aspiration_from_the_liquid_class():
     assert abs(corrected_volume(adjust, 50) - 53.5) < 0.2  # FluentControl logged 53.52 (2026-10-16)
     multi = {"CorrectionVolumeFormular": adjust, "ExcessVolumeFormular": "0.25*volume", "ConditioningVolumeFormular": "0"}
     plan = planned_aspiration(multi, 30, 3)
-    assert plan["dispensed"] == 90 and plan["excess"] == 22.5 and 120 < plan["liquid_in_tip"] < 122  # 3 x 32.8 corrected + 22.5
+    assert plan["dispensed"] == 90 and plan["excess"] == 22.5 and 116.5 < plan["liquid_in_tip"] < 117.5  # 116.97 on the instrument
     odd = planned_aspiration({"ExcessVolumeFormular": "if(volume>5,1,2)"}, 10, 1)
     assert odd["excess"] is None and not odd["formulas_understood"]
 
@@ -225,3 +225,10 @@ def test_statements_are_sent_with_line_number_1():
                                  "Water Free Multi", "FCA, 200ul SBS", [1], 1, 2)
     source = src[src.index("<PropertyPrefix>Source"):src.index("<PropertyPrefix>Target")]
     assert source.count("<int>") == 4
+
+
+def test_log_readers():
+    from riken_odtc_connector.liquid_handling import DETECTED_VOLUMES_PS1, FILTER_RESULTS_PS1
+
+    assert "detected volume" in DETECTED_VOLUMES_PS1
+    assert "Channel \\d+ : Filter" in FILTER_RESULTS_PS1 and "detected volume" not in FILTER_RESULTS_PS1
