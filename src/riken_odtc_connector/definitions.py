@@ -69,6 +69,10 @@ class DefinitionsConfig(Config):
     enabled: bool = True
     workspace: str = "WT2411004293_Ver.0.5_OFML"
     """Worktable used by OFML_ApiHost. Locations are checked against it."""
+    runtime_workspace: str = "RuntimeWorkspace"
+    """The worktable FluentControl actually runs on (it starts from the method's worktable and keeps labware added in
+    earlier runs, e.g. 4 Well SBS Trough[001] at Nest7mm_Pos[5]). Read for the labware already registered; it changes
+    with every run, so it is recorded but not compared with the baseline."""
     ssh_target: str = "Tecan@10.5.1.156"
     remote_dir: str = r"C:\Users\Tecan\OFML"
     """Folder on the Fluent PC that holds the definition index, the baseline and the records."""
@@ -280,8 +284,35 @@ def parse_workspace(xml: bytes, site_location: dict[str, str]) -> tuple[dict[str
                 if cc is not None and len(cc):
                     walk(cc)
 
-    walk(root.find(".//" + C + "Workspace").find(".//" + C + "Frame"))
+    walk(next(e for e in root.iter() if e.tag == C + "Frame"))
     return groups, labels
+
+
+def workspace_labware(xml: bytes, site_location: dict[str, str], component_name: dict[str, str]) -> dict[str, dict]:
+    """Labware placed on a worktable: label -> {"type", "location", "site"} (site counted from 1 per location)."""
+    root = ET.fromstring(xml)
+    counts: dict[str, int] = {}
+    out: dict[str, dict] = {}
+
+    def walk(comp):
+        arrs = comp.find(C + "Arrangements")
+        for arr in (arrs.findall(C + "Arrangement") if arrs is not None else []):
+            sites = arr.find(C + "Sites")
+            for kv in (list(sites) if sites is not None else []):
+                val = kv.find(A + "Value")
+                g = site_location.get(val.findtext(C + "BaseTemplateGuid") or "", "")
+                if g:
+                    counts[g] = counts.get(g, 0) + 1
+                cc = val.find(C + "ConnectedComponent")
+                if cc is not None and len(cc):
+                    lab = cc.find(C + "LabwareName/" + A + "KeyValueOfstringstring/" + A + "Value")
+                    if lab is not None and lab.text and g:
+                        out[lab.text] = {"type": component_name.get(cc.findtext(C + "CarrierOrLabwareTemplateGUID") or "", ""),
+                                         "location": g, "site": counts[g]}
+                    walk(cc)
+
+    walk(next(e for e in root.iter() if e.tag == C + "Frame"))
+    return out
 
 
 def tip_values(xml: bytes) -> dict[str, str]:
@@ -404,6 +435,19 @@ class Preflight:
         return names
 
     # ---- the check
+    def runtime_labware(self, index: dict[str, dict], pc=None) -> dict[str, dict]:
+        """Labware registered on FluentControl's RuntimeWorkspace: label -> {"type", "location", "site"}."""
+        pc = pc or self.pc
+        hits = sorted(p for p, e in index.items() if p.lower().endswith(".xwsp") and e.get("name") == self.config.runtime_workspace)
+        if not hits:
+            return {}
+        key = ("runtime", hits[0], index[hits[0]]["sha256"])
+        if getattr(self, "_runtime_cache", (None,))[0] != key:
+            sites = {pathlib.PureWindowsPath(p).stem: e.get("location", "") for p, e in index.items() if p.lower().endswith(".xsit")}
+            comps = {pathlib.PureWindowsPath(p).stem: e.get("name", "") for p, e in index.items() if p.lower().endswith(".xcmp")}
+            self._runtime_cache = (key, workspace_labware(pc.read(hits[0]), sites, comps))
+        return self._runtime_cache[1]
+
     def _workspace(self, index: dict[str, dict], rel: str) -> tuple[dict[str, int], set[str]]:
         sha = index[rel]["sha256"]
         if self._workspace_cache and self._workspace_cache[0] == sha:
@@ -464,6 +508,12 @@ class Preflight:
 
         ws_rel = need(self.config.workspace, ".xwsp", "Worktable")
         groups, placed = self._workspace(index, ws_rel) if ws_rel else ({}, set())
+        runtime = self.runtime_labware(index)
+        placed = set(placed) | set(runtime)
+        rt_rel = next((p for p, e in index.items() if p.lower().endswith(".xwsp") and e.get("name") == self.config.runtime_workspace), None)
+        if rt_rel:
+            manifest["runtime_workspace"] = {"file": rt_rel, "sha256": index[rt_rel]["sha256"],
+                                             "labware": {k: v for k, v in sorted(runtime.items()) if k in refs.get("labware", [])}}
         for lc in refs.get("liquid_classes", []):
             rel = need(lc, ".xlqc", "Liquid class")
             if rel and not index[rel].get("airfca"):
@@ -510,6 +560,8 @@ class Preflight:
             elif base[rel] != entry["sha256"]:
                 changes[rel] = {"name": name, "accepted": base[rel], "now": entry["sha256"]}
         record.definitions = [[rel, index[rel]["sha256"]] for rel in sorted(used)]
+        if rt_rel:
+            record.definitions.append([rt_rel, index[rt_rel]["sha256"]])
         manifest["problems"] = problems
         manifest["changed_since_accepted"] = changes
         record.write_manifest(manifest)

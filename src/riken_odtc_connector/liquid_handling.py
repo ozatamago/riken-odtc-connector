@@ -6,8 +6,8 @@ volumes, liquid class, channels, tip type). tests/test_gui_statements.py checks 
 structure as the statements of the 01-07 GUI scripts.
 
 They only work inside a run opened with RunController.StartRun, so that FluentControl keeps the mounted tips from one
-command to the next, and on labware added in that run with LabwareController.AddLabware (so the type and its well
-layout are known). Refused before sending (lessons from the instrument):
+command to the next, and on labware added in that run with LabwareController.AddLabware or already registered on FluentControl's
+RuntimeWorkspace (so the type and its well layout are known). Refused before sending (lessons from the instrument):
 
 - a second Aspirate with the same tips (it always failed in August 2026; one aspiration per tip, many dispenses are fine)
 - Aspirate / Dispense / Mix without tips, GetTips with tips, EndRun with tips (state mix-ups)
@@ -175,10 +175,21 @@ class LiquidHandling(sila.Feature):
         return list(channels)
 
     def _labware_type(self, labware: str) -> str:
+        """Type of labware added in this run, or already registered on FluentControl's RuntimeWorkspace."""
         t = self.backend.session_labware.get(labware)
-        if not t:
-            raise LiquidHandlingFailed(f"{labware} was not added in this run; add it with LabwareController.AddLabware")
-        return t
+        if t:
+            return t
+        try:
+            pc = self.pc or self.backend.preflight.pc
+            if "index" not in self._cache:
+                self._cache["index"] = pc.index()
+            known = self.backend.preflight.runtime_labware(self._cache["index"], pc)
+        except DefinitionCheckFailed:
+            known = {}
+        if labware in known and known[labware]["type"]:
+            return known[labware]["type"]
+        raise LiquidHandlingFailed(f"{labware} is neither added in this run nor registered on FluentControl's "
+                                   "worktable; add it with LabwareController.AddLabware")
 
     async def _send(self, label: str, xml: str, status: sila.Status, extra: dict | None = None) -> None:
         try:

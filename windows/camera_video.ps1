@@ -4,13 +4,16 @@
 #
 #   camera_video.ps1 -Serial 234500007 -Seconds 5 -OutDir C:\Users\Tecan\OFML\screen\video_test
 #
-# Frames are first copied into memory while streaming (so saving does not slow the stream), then converted and
-# written as frame_0001.jpg ... with frames.txt listing each frame's camera timestamp in ns.
+# Default: frames are first copied into memory while streaming (so saving does not slow the stream), then converted
+# and written as frame_0001.jpg ... with frames.txt listing each frame's camera timestamp in ns. This needs about
+# 100 MB of memory per second. -Live converts and writes each frame while streaming instead (any length, fewer
+# frames per second; frames the camera delivers meanwhile are dropped).
 param(
   [string]$Serial = '234500007',
   [double]$Seconds = 5,
   [string]$OutDir = 'C:\Users\Tecan\OFML\screen\video',
-  [int]$Width = 1280
+  [int]$Width = 1280,
+  [switch]$Live
 )
 $dir = 'C:\Program Files (x86)\Common Files\Tecan\Core\Recent'
 $env:PATH = $dir + ';' + $env:PATH
@@ -34,11 +37,26 @@ try {
   $dev = $sys.CreateDevice($info)
   try { "exposure " + $dev.NodeMap.GetNode('ExposureTime').ToString() + " us, auto " + $dev.NodeMap.GetNode('ExposureAuto').ToString() } catch {}
   $dev.StartStream(); $streaming = $true
-  $sw = [System.Diagnostics.Stopwatch]::StartNew(); $incomplete = 0
+  $sw = [System.Diagnostics.Stopwatch]::StartNew(); $incomplete = 0; $saved = New-Object System.Collections.ArrayList
+  "started " + (Get-Date -Format 'HH:mm:ss.fff')
   while ($sw.Elapsed.TotalSeconds -lt $Seconds) {
     $img = $dev.GetImage(3000)
-    if ($img.IsIncomplete) { $incomplete++ } else { [void]$frames.Add($copy.Invoke($null, @($img))) }
+    if ($img.IsIncomplete) { $incomplete++ }
+    elseif ($Live) {
+      $c = $convert.Invoke($null, @($img, $bgr8)); $b = $c.Bitmap; $h = [int]($b.Height * $Width / $b.Width)
+      $s = New-Object System.Drawing.Bitmap $b, $Width, $h
+      $s.Save((Join-Path $OutDir ('frame_{0:D4}.jpg' -f ($saved.Count + 1))), $jpeg, $q); $s.Dispose()
+      [void]$saved.Add((Get-Date -Format 'HH:mm:ss.fff') + ' ' + $img.TimestampNs); $destroy.Invoke($null, @($c))
+    }
+    else { [void]$frames.Add($copy.Invoke($null, @($img))) }
     $dev.RequeueBuffer($img)
+  }
+  "stopped " + (Get-Date -Format 'HH:mm:ss.fff')
+  if ($Live) {
+    $sw.Stop(); $dev.StopStream(); $streaming = $false
+    [System.IO.File]::WriteAllLines((Join-Path $OutDir 'frames.txt'), [string[]]$saved)
+    "live: saved " + $saved.Count + " frames in " + [math]::Round($sw.Elapsed.TotalSeconds, 2) + " s (incomplete " + $incomplete + ") to " + $OutDir
+    return
   }
   $sw.Stop()
   $dev.StopStream(); $streaming = $false

@@ -121,7 +121,7 @@ def test_a_water_transfer_and_the_refusals():
             await lh.get_tips("FCA, 200ul SBS", [1], "", status=S)
         with pytest.raises(LiquidHandlingFailed, match="more than a FCA, 200ul SBS tip holds"):
             await lh.aspirate("Water[001]", ["A1"], [180], "Water Free Single", [1], status=S)
-        with pytest.raises(LiquidHandlingFailed, match="was not added in this run"):
+        with pytest.raises(LiquidHandlingFailed, match="neither added in this run"):
             await lh.aspirate("Elsewhere[001]", ["A1"], [50], "Water Free Single", [1], status=S)
         await lh.aspirate("Water[001]", ["A1"], [50], "Water Free Single", [1], status=S)
         with pytest.raises(LiquidHandlingFailed, match="already aspirated with these tips"):
