@@ -10,8 +10,11 @@ space, and the lab wants the records next to the instrument):
 - ``OFML\\definitions\\index.json``: one entry per definition file of the FluentControl database (size, time, SHA-256,
   object name; the location name of sites; whether a liquid class has an Air FCA part). Only changed files are hashed.
 - ``OFML\\definitions\\baseline.json``: the accepted hash of each definition file.
+- ``OFML\\definitions\\versions\\<sha256>.<ext>``: every version of a definition file that an operation used, stored
+  once. FluentControl overwrites a definition in place when it is edited, so this is the only way to see later what
+  a liquid class or worktable looked like when an operation ran.
 - ``OFML\\records\\runs\\<time>_<operation>\\``: the XML sent (``steps``), ``manifest.json`` (each name used, the file it
-  resolved to, its hash and key values), copies of the definition files (``definitions``), ``result.json``.
+  resolved to, its hash, where that version is stored, key values) and ``result.json``. No copies of definitions.
 
 Before each operation the index is brought up to date, the names the XML uses are looked up, and the operation is
 refused if a name is missing, a location or site is not on the worktable, a liquid class has no Air FCA part (the arm
@@ -221,17 +224,23 @@ class FluentPc:
         finally:
             os.unlink(local)
 
-    def store_record(self, local: pathlib.Path, remote_rel: str, definitions: list[str]) -> None:
-        """Copy a local record folder (or file) to OFML\\records\\<remote_rel> and copy the definition files into it."""
+    def store_record(self, local: pathlib.Path, remote_rel: str, definitions: list) -> None:
+        """Copy a local record folder (or file) to OFML\\records\\<remote_rel>, and keep each definition version used
+        (pairs of relative path and SHA-256) in OFML\\definitions\\versions once."""
         target = f"{self.root}\\records\\{remote_rel}"
         parent = target.rsplit("\\", 1)[0]
         self._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{parent}\' | Out-Null"')
         self._scp(str(local), self._remote(parent) + "/", recursive=local.is_dir())
         if definitions:
+            # copy to a temporary name, check the hash, then keep it under the hash it really has
             lines = "\n".join(
-                f"$d = '{target}\\definitions\\{rel}'; New-Item -ItemType Directory -Force (Split-Path $d) | Out-Null; "
-                f"Copy-Item -LiteralPath '{REMOTE_DB}\\{rel}' -Destination $d" for rel in definitions)
-            self.run_ps("$ErrorActionPreference = 'Stop'\n" + lines + "\n")
+                f"$v = '{self.root}\\definitions\\versions\\{sha}{pathlib.PureWindowsPath(rel).suffix}'; "
+                f"if (-not (Test-Path $v)) {{ $tmp = $v + '.tmp'; Copy-Item -LiteralPath '{REMOTE_DB}\\{rel}' -Destination $tmp; "
+                f"$h = (Get-FileHash -Algorithm SHA256 -LiteralPath $tmp).Hash.ToLower(); "
+                f"if ($h -eq '{sha}') {{ Move-Item $tmp $v }} else {{ Move-Item -Force $tmp ($v -replace '{sha}', $h); "
+                f"'changed while copying: {rel}' }} }}" for rel, sha in definitions)
+            self.run_ps("$ErrorActionPreference = 'Stop'\n"
+                        f"New-Item -ItemType Directory -Force '{self.root}\\definitions\\versions' | Out-Null\n" + lines + "\n")
 
 
 # ---------------------------------------------------------------- worktable
@@ -295,7 +304,7 @@ class Preflight:
             return str(self.local / "dry-run" / remote_rel.replace("\\", "/"))
         return f"{self.config.remote_dir}\\records\\{remote_rel}"
 
-    def store(self, local: pathlib.Path, remote_rel: str, definitions: list[str]) -> None:
+    def store(self, local: pathlib.Path, remote_rel: str, definitions: list) -> None:
         """Move a finished local record to the Fluent PC. Never raises: on failure it waits in pending/."""
         if self.dry_run:
             dest = self.local / "dry-run" / remote_rel.replace("\\", "/")
@@ -447,7 +456,8 @@ class Preflight:
         first_seen = False
         for rel, name in sorted(used.items()):
             entry = index[rel]
-            info = {"name": name, "file": rel, "sha256": entry["sha256"], "size": entry["size"]}
+            info = {"name": name, "file": rel, "sha256": entry["sha256"], "size": entry["size"],
+                    "stored_as": f"definitions\\versions\\{entry['sha256']}{pathlib.PureWindowsPath(rel).suffix}"}
             if rel.lower().endswith(".xcmp") and name in refs.get("tips", []):
                 info["values"] = tip_values(self.pc.read(rel))
             manifest["definitions"].append(info)
@@ -457,7 +467,7 @@ class Preflight:
                 manifest["first_seen"].append(f"{name} ({rel})")
             elif base[rel] != entry["sha256"]:
                 changes[rel] = {"name": name, "accepted": base[rel], "now": entry["sha256"]}
-        record.definitions = sorted(used)
+        record.definitions = [[rel, index[rel]["sha256"]] for rel in sorted(used)]
         manifest["problems"] = problems
         manifest["changed_since_accepted"] = changes
         record.write_manifest(manifest)
@@ -486,7 +496,8 @@ class RunRecord:
         self._tmp = pathlib.Path(tempfile.mkdtemp(prefix="ofml-record-"))
         self.folder = self._tmp / remote_rel.rsplit("\\", 1)[-1]
         self.folder.mkdir()
-        self.definitions: list[str] = []
+        self.definitions: list = []
+        """[relative path, SHA-256] of every definition the operation used."""
 
     def write_steps(self, steps: list[tuple[str, str]]) -> None:
         d = self.folder / "steps"

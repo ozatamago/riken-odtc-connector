@@ -85,12 +85,13 @@ class FakePc:
         dest.parent.mkdir(parents=True, exist_ok=True)
         if local.is_dir():
             shutil.copytree(local, dest, dirs_exist_ok=True)
-            for rel in definitions:
-                d = dest / "definitions" / rel.replace("\\", "/")
-                d.parent.mkdir(parents=True, exist_ok=True)
-                d.write_bytes(self.files[rel])
         else:
             shutil.copy2(local, dest)
+        for rel, sha in definitions:
+            v = self.records.parent / "versions" / f"{sha}{pathlib.PurePosixPath(rel.replace(chr(92), '/')).suffix}"
+            v.parent.mkdir(parents=True, exist_ok=True)
+            if not v.exists():
+                v.write_bytes(self.files[rel])
 
 
 def database() -> dict[str, str]:
@@ -144,7 +145,10 @@ def test_ok_command_is_recorded_on_the_fluent_pc_only(preflight, pc, tmp_path):
     assert {"WT_TEST", "Water Free Single", "RGA 1", "Fca"} <= names
     assert manifest["problems"] == [] and manifest["first_seen"] and pc.baseline
     assert (stored / "steps" / "01_RGA_move.xml").exists() and (stored / "result.json").exists()
-    assert list((stored / "definitions").rglob("*.xlqc"))
+    assert not (stored / "definitions").exists()  # versions are kept once, outside the record
+    lc = next(d for d in manifest["definitions"] if d["name"] == "Water Free Single")
+    version = pc.records.parent / "versions" / f"{lc['sha256']}.xlqc"
+    assert version.read_bytes() == pc.files[lc["file"]] and lc["stored_as"].endswith(version.name)
     assert not record._tmp.exists() and not (tmp_path / ".riken_fluent780").exists()  # nothing left locally
 
 
@@ -215,3 +219,16 @@ def test_dry_run_records_are_removed_after_a_real_operation(tmp_path):
     assert (tmp_path / ".riken_fluent780" / "dry-run").exists()
     Preflight(DefinitionsConfig(), dry_run=False).forget_dry_runs()
     assert not (tmp_path / ".riken_fluent780" / "dry-run").exists()
+
+
+def test_each_definition_version_is_stored_once(preflight, pc):
+    for i in range(3):
+        preflight.begin([("Aspirate", aspirate_xml("Water Free Single"))], f"op{i}").finish({"status": "ok"})
+    rel = r"SystemSpecific\LiquidClasses\lc1.xlqc"
+    pc.files[rel] += b"<!-- edited -->"
+    preflight.pending = {}
+    with pytest.raises(DefinitionCheckFailed):
+        preflight.begin([("Aspirate", aspirate_xml("Water Free Single"))], "after edit")
+    preflight.accept_pending_changes()
+    preflight.begin([("Aspirate", aspirate_xml("Water Free Single"))], "accepted").finish({"status": "ok"})
+    assert len(list((pc.records.parent / "versions").glob("*.xlqc"))) == 2  # before and after the edit
