@@ -35,12 +35,13 @@ import os
 import pathlib
 import re
 import shutil
-import subprocess
 import tempfile
 import threading
 import xml.etree.ElementTree as ET
 
 from unitelabs.cdk.config import Config
+
+from . import remote
 
 REMOTE_DB = r"C:\ProgramData\Tecan\VisionX\DataBase"
 # Folders of the database that hold definitions (meshes, textures, connectors and undo history are not needed)
@@ -154,7 +155,7 @@ $json
 
 
 class FluentPc:
-    """Access to the definitions and records on the Fluent PC over SSH."""
+    """Access to the definitions and records on the Fluent PC (over SSH, or directly when ssh_target is "local")."""
 
     STORE_TIMEOUT = 60
     """Seconds for each SSH/scp call while storing a record (it is retried later if it fails)."""
@@ -164,19 +165,18 @@ class FluentPc:
         self.root = config.remote_dir.rstrip("\\")
 
     def _ssh(self, command: str, timeout: int = 300) -> bytes:
-        out = subprocess.run(["ssh", "-o", "ConnectTimeout=15", "-o", "BatchMode=yes", self.config.ssh_target, command],
-                             capture_output=True, timeout=timeout)
+        out = remote.run(self.config.ssh_target, command, timeout)
         if out.returncode != 0:
-            raise DefinitionCheckFailed(f"SSH to the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
+            raise DefinitionCheckFailed(f"Command on the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
         return out.stdout
 
     def _scp(self, src: str, dest: str, recursive: bool = False, timeout: int = 600) -> None:
-        out = subprocess.run(["scp", "-q"] + (["-r"] if recursive else []) + [src, dest], capture_output=True, timeout=timeout)
+        out = remote.copy(src, dest, recursive, timeout, self.config.ssh_target)
         if out.returncode != 0:
             raise DefinitionCheckFailed(f"Copy to/from the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
 
     def _remote(self, path: str) -> str:
-        return f"{self.config.ssh_target}:{path.replace(chr(92), '/')}"
+        return remote.spec(self.config.ssh_target, path)
 
     def run_ps(self, script: str, timeout: int = 600) -> bytes:
         """Copy a PowerShell script into OFML\\work and run it (avoids quoting problems)."""

@@ -415,13 +415,11 @@ class FluentOdtcBackend:
 
     # ---- Temperature (the ReadActualTemperature result is not returned to FluentControl; only the driver log has it)
     def _ssh_ps(self, args: str) -> str:
-        import subprocess
+        from . import remote
 
-        cmd = ["ssh", "-o", "ConnectTimeout=15", "-o", "BatchMode=yes", self.config.ssh_target,
-               f"powershell -NoProfile -ExecutionPolicy Bypass {args}"]
-        out = subprocess.run(cmd, capture_output=True, timeout=120)
+        out = remote.run(self.config.ssh_target, f"powershell -NoProfile -ExecutionPolicy Bypass {args}", 120)
         if out.returncode != 0:
-            raise BackendError(f"SSH to the Fluent PC failed: {out.stderr.decode(errors='replace')[:200]}")
+            raise BackendError(f"Command on the Fluent PC failed: {out.stderr.decode(errors='replace')[:200]}")
         return out.stdout.decode("utf-8", errors="replace").replace("\r", "")
 
     def _read_sensor_values(self, report) -> dict[str, float | str]:

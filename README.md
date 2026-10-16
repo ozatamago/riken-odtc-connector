@@ -122,6 +122,23 @@ uv run connector start --app riken_odtc_connector:create_app -cfg config.json
 - After adding Commands, make the UniteLabs App reload the Features
   (`PATCH http://10.5.1.156:3004/api/servers/<UUID>/features/update`, or reload the page).
 
+### On the Fluent PC itself
+
+The server can run on the Fluent PC (Windows) instead of another computer. With `ssh_target` set to `"local"`, the
+commands that otherwise go over SSH/scp (definitions, records, cameras, FluentControl's log) run directly.
+
+```powershell
+git clone https://github.com/ozatamago/riken-odtc-connector.git C:\Users\Tecan\OFML\connector
+cd C:\Users\Tecan\OFML\connector
+uv sync
+copy config.fluent780.fluentpc.example.json config.fluent780.json   # hostname 10.5.1.156, ssh_target "local"
+powershell -NoProfile -ExecutionPolicy Bypass -File windows\start_connector.ps1
+```
+
+- `windows/start_connector.ps1` writes the server output to `C:\Users\Tecan\OFML\connector_state\server_<time>.log`.
+- Only one server with the same UUID may run: stop it on the other computer first.
+- Records that cannot be stored at once wait in `fluent.definitions.local_dir` (`C:\Users\Tecan\OFML\connector_state`).
+
 ## Quirks of the back end (UniteLabs FluentControl connector)
 
 - **After restarting FluentControl, send `FluentController.GetRuntime` to the UniteLabs connector.** Otherwise it keeps pointing at the old FluentControl instance.

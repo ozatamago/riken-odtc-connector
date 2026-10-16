@@ -34,6 +34,8 @@ import uuid
 import zipfile
 
 from unitelabs.cdk import sila
+
+from . import remote
 from unitelabs.cdk.config import Config
 
 
@@ -95,8 +97,7 @@ class DeckCameras:
 
     # ---- talking to the Fluent PC
     def _ssh(self, command: str, timeout: float = 120) -> str:
-        out = subprocess.run(["ssh", "-o", "ConnectTimeout=15", "-o", "BatchMode=yes", self.ssh_target, command],
-                             capture_output=True, timeout=timeout)
+        out = remote.run(self.ssh_target, command, timeout)
         if out.returncode != 0:
             raise CameraFailed(f"SSH to the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
         return out.stdout.decode("utf-8", errors="replace").replace("\r", "")
@@ -109,14 +110,12 @@ class DeckCameras:
         with tempfile.TemporaryDirectory() as tmp:
             f = pathlib.Path(tmp) / "f"
             f.write_text(text, encoding="utf-8")
-            out = subprocess.run(["scp", "-q", str(f), f"{self.ssh_target}:{remote_path.replace(chr(92), '/')}"],
-                                 capture_output=True, timeout=60)
+            out = remote.copy(str(f), remote.spec(self.ssh_target, remote_path), timeout=60, target=self.ssh_target)
             if out.returncode != 0:
                 raise CameraFailed(f"Copy to the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
 
     def _get(self, remote_path: str, local: pathlib.Path) -> None:
-        out = subprocess.run(["scp", "-q", f"{self.ssh_target}:{remote_path.replace(chr(92), '/')}", str(local)],
-                             capture_output=True, timeout=300)
+        out = remote.copy(remote.spec(self.ssh_target, remote_path), str(local), timeout=300, target=self.ssh_target)
         if out.returncode != 0:
             raise CameraFailed(f"Copy from the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
 
@@ -210,8 +209,7 @@ class DeckCameras:
                    f'-Record "{",".join(names)}" -OutDir "{out_dir}" -Fps {fps:g} -MaxSeconds {self.config.max_recording_s:g} '
                    f'-StateFile "{self.config.recorder_state}"')
             # The recorder keeps running on the Fluent PC even if this SSH connection goes (tested 2026-10-16)
-            proc = subprocess.Popen(["ssh", "-o", "ConnectTimeout=15", "-o", "BatchMode=yes", self.ssh_target, cmd],
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            proc = remote.popen(self.ssh_target, cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             lines: list[str] = []
 
             def read():
@@ -284,15 +282,14 @@ class DeckCameras:
         finally:
             shutil.rmtree(tmp, ignore_errors=True)  # nothing of it is kept on this computer
 
-    def _get_back(self, local: pathlib.Path, remote: str) -> None:
-        out = subprocess.run(["scp", "-q", str(local), f"{self.ssh_target}:{remote.replace(chr(92), '/')}"],
-                             capture_output=True, timeout=600)
+    def _get_back(self, local: pathlib.Path, remote_path: str) -> None:
+        out = remote.copy(str(local), remote.spec(self.ssh_target, remote_path), timeout=600, target=self.ssh_target)
         if out.returncode != 0:
             raise CameraFailed(f"Copy to the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
         want = hashlib.sha256(local.read_bytes()).hexdigest().upper()
-        got = self._ps(f"(Get-FileHash '{remote}').Hash").strip()
+        got = self._ps(f"(Get-FileHash '{remote_path}').Hash").strip()
         if got != want:
-            raise CameraFailed(f"The copy of {remote} on the Fluent PC differs; frames kept")
+            raise CameraFailed(f"The copy of {remote_path} on the Fluent PC differs; frames kept")
 
 
 class DeckCamera(sila.Feature):
