@@ -25,7 +25,7 @@ def test_all_features_are_there_with_unique_names():
         "DoorController", "MethodController", "TemperatureController",
         "TrayController", "AbsorbanceReader", "FluentPlateHandling",
         "BioShakeController", "ShakingIncubatorController", "TemperaturePositionController", "Incubator1Controller",
-        "RunController", "StatusController",
+        "DeckCamera", "RunController", "StatusController",
     ]
     assert len(set(names)) == len(names)
 
@@ -34,7 +34,8 @@ def test_one_backend_is_shared_by_every_feature():
     features = build_features(Fluent780ConnectorConfig())
     backends = {id(b) for f in features for b in backends_of(f)}
     assert len(backends) == 1
-    assert all(backends_of(f) for f in features)
+    # every feature that talks to FluentControl shares it (DeckCamera reads the cameras directly)
+    assert all(backends_of(f) for f in features if type(f).__name__ != "DeckCamera")
 
 
 def test_second_operation_is_refused_and_says_what_is_running():

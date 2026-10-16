@@ -250,3 +250,33 @@ def test_a_hanging_fluent_pc_does_not_hold_up_the_command(pc, tmp_path):
     assert p.wait_for_uploads(10)
     assert len(list((pc.records / "runs").iterdir())) == 1
     assert not list((tmp_path / ".riken_fluent780" / "pending").rglob("*.pending.json"))
+
+
+def test_open_run_takes_deck_images_at_start_and_end(tmp_path):
+    import json as _json
+
+    backend = FluentOdtcBackend(FluentBackendConfig())
+
+    class FakeCameras:
+        class config:
+            capture_on_run = True
+            cameras = {"Left": "1", "Center": "2", "Right": "3"}
+
+        def __init__(self):
+            self.calls = []
+
+        def capture(self, names, out_dir, tag=""):
+            self.calls.append((tuple(names), out_dir, tag))
+            return [{"camera": n, "status": "ok", "image": f"{out_dir}\\{tag}_{n}.png"} for n in names]
+
+    backend.cameras = FakeCameras()
+
+    async def scenario():
+        folder = pathlib.Path(await backend.start_run())
+        await backend.end_run()
+        info = _json.loads((folder / "session.json").read_text())
+        assert [c[2] for c in backend.cameras.calls] == ["start", "end"]
+        assert backend.cameras.calls[0][1].endswith("_session_dry-run\\images")
+        assert len(info["images_start"]) == 3 and len(info["images_end"]) == 3
+
+    asyncio.run(scenario())

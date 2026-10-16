@@ -144,6 +144,8 @@ class FluentOdtcBackend:
         """Labware added with AddLabware in the open run: label -> labware type."""
         self.tips: dict[int, dict] = {}
         """Tips mounted in the open run: channel (1-8) -> {"type", "group", "capacity", "aspirated", "volume"}."""
+        self.cameras = None
+        """DeckCameras: images of the deck at StartRun and EndRun (set by the server; None means no images)."""
         self._session = None
         """Run opened by StartRun: {"rel": records folder, "started": str, "commands": int}. None when none is open."""
 
@@ -308,6 +310,17 @@ class FluentOdtcBackend:
             f.write_text(json.dumps(info))
             self.preflight.store(f, self._session_rel(info["started"]) + "\\session.json", [])
 
+    def _deck_images(self, tag: str) -> list:
+        """Images of the deck from all cameras into the open run's record (never fails the run)."""
+        if self.cameras is None or not self.cameras.config.capture_on_run or not self._session:
+            return []
+        out_dir = f"{self.config.definitions.remote_dir.rstrip(chr(92))}\\records\\{self._session['rel']}\\images"
+        try:
+            return self.cameras.capture(list(self.cameras.config.cameras), out_dir, tag)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Deck images (%s) failed: %s", tag, exc)
+            return [{"status": "error", "error": str(exc)[:300]}]
+
     def _session_rel(self, started: str) -> str:
         return f"runs\\{started}_session" + ("_dry-run" if self.config.dry_run else "")
 
@@ -322,7 +335,8 @@ class FluentOdtcBackend:
         self._session = {"rel": self._session_rel(started), "started": started, "commands": 0}
         self.session_labware = {}
         self.tips = {}
-        self._write_session({"started": started, "dry_run": self.config.dry_run})
+        self._session["images_start"] = self._deck_images("start")
+        self._write_session({"started": started, "dry_run": self.config.dry_run, "images_start": self._session["images_start"]})
         return self.preflight.location(self._session["rel"])
 
     def _end_session(self, report) -> int:
@@ -332,11 +346,13 @@ class FluentOdtcBackend:
             raise BackendError("No run is open")
         if self.tips:
             raise BackendError(f"Tips are still mounted on channels {sorted(self.tips)}: drop them first (DropTips)")
+        images_end = self._deck_images("end")
         session, self._session = self._session, None
         if not self.config.dry_run:
             self._close_run(report)
         self._write_session({"started": session["started"], "dry_run": self.config.dry_run,
-                             "ended": datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), "commands": session["commands"]})
+                             "ended": datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), "commands": session["commands"],
+                             "images_start": session.get("images_start", []), "images_end": images_end})
         return session["commands"]
 
     async def start_run(self, report=lambda _: None) -> str:

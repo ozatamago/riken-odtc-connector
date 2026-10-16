@@ -17,6 +17,7 @@ import dataclasses
 from unitelabs.cdk import Connector, ConnectorBaseConfig, SiLAServerConfig, sila
 
 from .door_controller import DoorController
+from .deck_camera import DeckCamera, DeckCameraConfig, DeckCameras
 from .definitions import FluentPc
 from .fluent_backend import FluentBackendConfig, FluentOdtcBackend
 from .infinite.features import AbsorbanceReader, FluentPlateHandling, TrayController
@@ -62,6 +63,7 @@ class Fluent780ConnectorConfig(ConnectorBaseConfig):
     fluent: FluentBackendConfig = dataclasses.field(default_factory=FluentBackendConfig)
     infinite: InfiniteConfig = dataclasses.field(default_factory=InfiniteConfig)
     plates: PlateTransferConfig = dataclasses.field(default_factory=PlateTransferConfig)
+    cameras: DeckCameraConfig = dataclasses.field(default_factory=DeckCameraConfig)
 
 
 def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
@@ -69,6 +71,9 @@ def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
     backend = FluentOdtcBackend(config.fluent)
     reader = FluentInfiniteReader(backend, config.infinite)
     tracker = LabwareTracker(config.plates, FluentPc(config.fluent.definitions), persist=not config.fluent.dry_run)
+    cameras = DeckCameras(config.cameras, config.fluent.definitions.ssh_target,
+                          config.fluent.definitions.remote_dir + "\\records", config.fluent.dry_run)
+    backend.cameras = cameras
     return [
         # RGA
         RgaController(backend, tracker),
@@ -88,6 +93,7 @@ def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
         TemperaturePositionController(backend),
         Incubator1Controller(backend),
         # Overall
+        DeckCamera(cameras),
         RunController(backend),
         StatusController(backend),
     ]
