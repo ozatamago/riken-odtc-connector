@@ -101,7 +101,7 @@ def test_transfer_individual_volumes_of_04():
                                  r"C:\Users\Tecan\OFML\records\runs\x\files\v.csv", "Water Free Multi",
                                  "FCA, 200ul SBS", list(range(1, 9)), 6, 12)
     assert obj(xml) == ref("LihaTransferIndividualVolumesSmartCommand_2.xml",
-                           **{">NameImportFile<": '>"C:\\Users\\Tecan\\OFML\\records\\runs\\x\\files\\v.csv"<'})
+                           **{">NameImportFile<": '>C:\\Users\\Tecan\\OFML\\records\\runs\\x\\files\\v.csv<'})
     # the same form as 04's files (C:\FluentData\04_SelectionMediumPreparation\Medium1.csv)
     assert individual_volumes_file([(1, 1, 10), (1, 2, 12.5)]) == \
         "Source well index;Target well index;Volume [ul]\r\n1;1;10\r\n1;2;12.5\r\n"
@@ -210,3 +210,18 @@ def test_planned_aspiration_from_the_liquid_class():
     assert plan["dispensed"] == 90 and plan["excess"] == 22.5 and 120 < plan["liquid_in_tip"] < 122  # 3 x 32.8 corrected + 22.5
     odd = planned_aspiration({"ExcessVolumeFormular": "if(volume>5,1,2)"}, 10, 1)
     assert odd["excess"] is None and not odd["formulas_understood"]
+
+
+def test_statements_are_sent_with_line_number_1():
+    xml = individual_volumes_xml("6 Well SBS Trough[001]", labware_geometry(TROUGH_XCMP), "CulturePlate[001]", PLATE,
+                                 r"C:\x.csv", "Water Free Multi", "FCA, 200ul SBS", [1], 1, 2)
+    inner = lambda x: x[:x.index("</Objects>")]  # the ScriptGroup around it keeps 0, as for every command
+    assert "<LineNumber>1</LineNumber>" in inner(xml) and "<LineNumber>0</LineNumber>" not in inner(xml)
+    for _, step in worklist_xml(r"C:\w.csv", r"C:\w.gwl", "FCA, 200ul SBS", "Water Free Single", [1]):
+        assert "<LineNumber>0</LineNumber>" not in inner(step)
+    # all lanes of a 4-lane trough are selectable, not the 6 of 04's trough
+    four = labware_geometry(TROUGH_XCMP.replace(">6<", ">4<"))
+    src = individual_volumes_xml("4 Well SBS Trough[001]", four, "CulturePlate[001]", PLATE, r"C:\x.csv",
+                                 "Water Free Multi", "FCA, 200ul SBS", [1], 1, 2)
+    source = src[src.index("<PropertyPrefix>Source"):src.index("<PropertyPrefix>Target")]
+    assert source.count("<int>") == 4

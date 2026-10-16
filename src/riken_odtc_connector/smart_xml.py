@@ -25,10 +25,18 @@ the worktable: two plates of 06 that are on the deck at the same time both have 
 import re
 
 from .fluent_backend import BackendError
-from .infinite.xml import _esc, wrap
+from .infinite.xml import _esc
+from .infinite.xml import wrap as _wrap
 from .liquid_handling import _set, _set_list, _template, wells_fields, well_index
 
 WASTE = "FCA Thru Deck Waste Chute_1"
+
+
+def wrap(obj_xml: str) -> str:
+    """Wrap one statement, with line number 1: the templates have 0 (the extractor sets it so that statements can be
+    compared), and FluentControl refuses some statements with line 0 ("The line number has to be grater than 0" for
+    WorklistImport; only "Error executing command" for Transfer Individual Volumes; 2026-10-16)."""
+    return _wrap(re.sub(r"<LineNumber>0</LineNumber>", "<LineNumber>1</LineNumber>", obj_xml))
 
 CLLD_ERRORS = {
     # SiLA parameter -> (element of the statement, error shown by FluentControl)
@@ -222,9 +230,13 @@ def individual_volumes_xml(source: str, source_geo: dict, target: str, target_ge
                            liquid_class: str, tip_type: str, channels: list[int], reuse: int, multi: int) -> str:
     xml = _template("liha_transferindividualvolumes_reference.xml")
     xml = _common(xml, tip_type, liquid_class, channels, reuse, multi)
-    xml = _section(xml, "Source", source, source_geo, None, None)
-    xml = _section(xml, "Target", target, target_geo, None, None)  # left-over tip content goes to the waste chute
-    return wrap(_set(xml, "PipettingInstructionFilePath", quoted(file_path)))
+    # The file names wells by number; the selections are the wells it may use, all wells of each labware as in 04
+    # (FluentControl refused "Well selection is out of the range" when 6 lanes were selected on a 4-lane trough)
+    xml = _section(xml, "Source", source, source_geo, list(range(source_geo["xcount"] * source_geo["ycount"])), None)
+    xml = _section(xml, "Target", target, target_geo, list(range(target_geo["xcount"] * target_geo["ycount"])), None)
+    # left-over tip content goes to the waste chute, as in the template
+    # A plain path here, not a string expression: a quoted path made FluentControl refuse the command (2026-10-16)
+    return wrap(_set(xml, "PipettingInstructionFilePath", file_path))
 
 
 # ---------------------------------------------------------------- worklists (02, 05, 07)
