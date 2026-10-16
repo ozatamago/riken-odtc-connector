@@ -1,0 +1,23 @@
+<Object Type="Tecan.VisionX.TouchTools.Driver.RUP.RUPGetFileStatement">
+<RUPGetFileStatement>
+<GetFileDatas>
+<GetFileDataModel>
+<Instructions>InsertDNA分注に使用するcsvファイルを選択</Instructions>
+<FileLocation>C:\FluentData\07_GoldenGateAssembly</FileLocation>
+<Filter>*.csv*</Filter>
+<VariableName>NameImportFile</VariableName>
+<IsSkipScreenPossible>false</IsSkipScreenPossible>
+<VariableScope />
+</GetFileDataModel>
+</GetFileDatas>
+<IsBreakpoint>False</IsBreakpoint>
+<IsDisabledForExecution>False</IsDisabledForExecution>
+<LineNumber>0</LineNumber>
+<RUPScreenTitle>File selection</RUPScreenTitle>
+<RUPDisplayAndWait>True</RUPDisplayAndWait>
+<RUPAutoClose>False</RUPAutoClose>
+<RUPTimeOut>1</RUPTimeOut>
+<ChangeStatusLightColor>False</ChangeStatusLightColor>
+<StatusLightColorString></StatusLightColorString>
+</RUPGetFileStatement>
+</Object>

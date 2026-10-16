@@ -1,6 +1,8 @@
 file	statement	summary	source	line
+ImportVariableStatement_1.xml	ImportVariableStatement		06_Plasmid_Extraction_Ver1_0	22
 CgaDropFingersScriptCommandDataV1_1.xml	CgaDropFingersScriptCommandDataV1	labware=FES Eccentric Nest[001]	06_Plasmid_Extraction_Ver1_0	58
 CgaGetFingersScriptCommandDataV1_1.xml	CgaGetFingersScriptCommandDataV1	labware=Centric[001]	06_Plasmid_Extraction_Ver1_0	59
+ExportVariableStatement_1.xml	ExportVariableStatement		06_Plasmid_Extraction_Ver1_0	72
 LihaSetClldErrorHandlingScriptCommandDataV4_1.xml	LihaSetClldErrorHandlingScriptCommandDataV4		06_Plasmid_Extraction_Ver1_0	73
 LihaReagentDistributionSmartCommand_1.xml	LihaReagentDistributionSmartCommand	labware=FCA Thru Deck Waste Chute_1; wells=A1; lc=Zymo FCA Lysis buffer single w post mixing_KnowPos; tips=0,1,2,3,4,5,6,7; diti="20:FCA DiTi 50µl Filtered;80:FCA DiTi 200µl;"	06_Plasmid_Extraction_Ver1_0	74
 LihaSetClldErrorHandlingScriptCommandDataV4_2.xml	LihaSetClldErrorHandlingScriptCommandDataV4		06_Plasmid_Extraction_Ver1_0	75
@@ -45,22 +47,33 @@ LihaReagentDistributionSmartCommand_5.xml	LihaReagentDistributionSmartCommand	la
 AddLabwareDataV1_2.xml	AddLabwareDataV1	labware=TemplatePlate[001]; type=96 Well Skirted PCR_Custom; location=BioShake_Q1_Adapter_Site_PCR[1]	03_Transformation_Ver1_0	61
 LihaAspirateScriptCommandDataV5_13.xml	LihaAspirateScriptCommandDataV5	labware=TemplatePlate[001]; wells=A1 - H1; volumes=VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell; lc=CM_Water Z Max Single; tips=0,1,2,3,4,5,6,7	03_Transformation_Ver1_0	69
 LihaDispenseScriptCommandDataV6_9.xml	LihaDispenseScriptCommandDataV6	labware=IncubationDPW[001]; wells=A1 - H1; volumes=VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell,VolPlate+VolCell; lc=CM_Water Z Max Single; tips=0,1,2,3,4,5,6,7	03_Transformation_Ver1_0	70
+RUPGetFileStatement_1.xml	RUPGetFileStatement		07_Golden_Gate_Assembly_Ver1_0	4
+ImportVariableStatement_2.xml	ImportVariableStatement		07_Golden_Gate_Assembly_Ver1_0	8
 LihaReagentDistributionSmartCommand_6.xml	LihaReagentDistributionSmartCommand	labware=NFW; wells=A1; lc=Water Free Multi; tips=0,1,2,3,4,5,6,7; diti="20:FCA DiTi 50µl Filtered;80:FCA DiTi 200µl;"	07_Golden_Gate_Assembly_Ver1_0	54
 LihaGetTipsScriptCommandDataV3_4.xml	LihaGetTipsScriptCommandDataV3	tips=0,1,2,3,4,5,6,7	07_Golden_Gate_Assembly_Ver1_0	62
 LihaAspirateScriptCommandDataV5_14.xml	LihaAspirateScriptCommandDataV5	labware=Alpaqua POGO_Custom[001]; wells=8 * A1; volumes=Vol,Vol,Vol,Vol,Vol,Vol,Vol,Vol; lc=Water Contact Wet Single; tips=0,1,2,3,4,5,6,7	07_Golden_Gate_Assembly_Ver1_0	63
 LihaDispenseScriptCommandDataV6_10.xml	LihaDispenseScriptCommandDataV6	labware=AssemblyPlate[001]; wells=A1 - H1; volumes=Vol,Vol,Vol,Vol,Vol,Vol,Vol,Vol; lc=Water Contact Wet Single; tips=0,1,2,3,4,5,6,7	07_Golden_Gate_Assembly_Ver1_0	64
+WorklistImportStatementDataV2_1.xml	WorklistImportStatementDataV2		07_Golden_Gate_Assembly_Ver1_0	73
+LoadWorklistStatementDataV4_1.xml	LoadWorklistStatementDataV4	labware="FCA Thru Deck Waste Chute_1"	07_Golden_Gate_Assembly_Ver1_0	74
+ExecuteWorklistStatementDataV1_1.xml	ExecuteWorklistStatementDataV1		07_Golden_Gate_Assembly_Ver1_0	76
 LihaAspirateScriptCommandDataV5_15.xml	LihaAspirateScriptCommandDataV5	labware=Alpaqua POGO_Custom[001]; wells=8 * A3; volumes=Vol,Vol,Vol,Vol,Vol,Vol,Vol,Vol; lc=Water Contact Wet Single; tips=0,1,2,3,4,5,6,7	07_Golden_Gate_Assembly_Ver1_0	87
 LihaAspirateScriptCommandDataV5_16.xml	LihaAspirateScriptCommandDataV5	labware=Alpaqua POGO_Custom[001]; wells=8 * A5; volumes=Vol,Vol,Vol,Vol,Vol,Vol,Vol,Vol; lc=Water Contact Wet Single; tips=0,1,2,3,4,5,6,7	07_Golden_Gate_Assembly_Ver1_0	101
 RemoveLabwareDataV1_2.xml	RemoveLabwareDataV1	labware=AssemblyPlate[001]	07_Golden_Gate_Assembly_Ver1_0	116
 AddLabwareDataV1_3.xml	AddLabwareDataV1	labware=AssemblyPlate[001]; type=96 Well Skirted PCR_Custom_Template; location=BioShake_Q1_Adapter_Site_PCR[1]	07_Golden_Gate_Assembly_Ver1_0	117
 AddLabwareDataV1_4.xml	AddLabwareDataV1	labware=AssemblyPlate[001]; type=96 Well Skirted PCR_Custom; location=BioShake_Q1_Adapter_Site_PCR[1]	07_Golden_Gate_Assembly_Ver1_0	123
+RUPGetFileStatement_2.xml	RUPGetFileStatement		05_Subculture_and_OD_measure_Ver1_0	4
+ImportVariableStatement_3.xml	ImportVariableStatement		05_Subculture_and_OD_measure_Ver1_0	8
 CgaGetFingersScriptCommandDataV1_3.xml	CgaGetFingersScriptCommandDataV1	labware=Eccentric[001]	05_Subculture_and_OD_measure_Ver1_0	39
 CgaDropFingersScriptCommandDataV1_3.xml	CgaDropFingersScriptCommandDataV1		05_Subculture_and_OD_measure_Ver1_0	43
+LoadWorklistStatementDataV4_2.xml	LoadWorklistStatementDataV4	labware="FCA Thru Deck Waste Chute_1"	05_Subculture_and_OD_measure_Ver1_0	51
+RUPGetFileStatement_3.xml	RUPGetFileStatement		02_PCR_Ver1_0	4
 LihaInlineFilterCheckScriptCommandDataV1_1.xml	LihaInlineFilterCheckScriptCommandDataV1		02_PCR_Ver1_0	39
 LihaDetectLiquidScriptCommandDataV3_1.xml	LihaDetectLiquidScriptCommandDataV3	labware=Alpaqua POGO_Custom[001]; wells=A1; tips=0	02_PCR_Ver1_0	55
 LihaAspirateScriptCommandDataV5_17.xml	LihaAspirateScriptCommandDataV5	labware=MasterMix[001]; wells=8 * A1; volumes=Vol,Vol,Vol,Vol,Vol,Vol,Vol,Vol; lc=Water Dry Contact Single; tips=0,1,2,3,4,5,6,7	02_PCR_Ver1_0	56
 LihaDispenseScriptCommandDataV6_11.xml	LihaDispenseScriptCommandDataV6	labware=TemplatePlate[001]; wells=A1 - H1; volumes=Vol,Vol,Vol,Vol,Vol,Vol,Vol,Vol; lc=Water Dry Contact Single; tips=0,1,2,3,4,5,6,7	02_PCR_Ver1_0	57
 LihaAspirateScriptCommandDataV5_18.xml	LihaAspirateScriptCommandDataV5	labware=Alpaqua POGO_Custom[001]; wells=2 * A1, 2 * B1, 2 * C1, 2 * D1; volumes=Vol,Vol,Vol,Vol,Vol,Vol,Vol,Vol; lc=Water Dry Contact Single; tips=0,1,2,3,4,5,6,7	02_PCR_Ver1_0	65
+WorklistImportStatementDataV2_2.xml	WorklistImportStatementDataV2		02_PCR_Ver1_0	75
+LoadWorklistStatementDataV4_3.xml	LoadWorklistStatementDataV4	labware="FCA Thru Deck Waste Chute_1"; lc="Water Dry Contact Single"	02_PCR_Ver1_0	76
 LihaDetectLiquidScriptCommandDataV3_2.xml	LihaDetectLiquidScriptCommandDataV3	labware=Alpaqua POGO_Custom[001]; wells=A6; tips=0	02_PCR_Ver1_0	104
 LihaAspirateScriptCommandDataV5_19.xml	LihaAspirateScriptCommandDataV5	labware=Enzyme[001]; wells=8 * A1; volumes=Vol,Vol,Vol,Vol,Vol,Vol,Vol,Vol; lc=CM_Water Z Max Single; tips=0,1,2,3,4,5,6,7	02_PCR_Ver1_0	105
 LihaDispenseScriptCommandDataV6_12.xml	LihaDispenseScriptCommandDataV6	labware=TemplatePlate[001]; wells=A1 - H1; volumes=Vol,Vol,Vol,Vol,Vol,Vol,Vol,Vol; lc=CM_Water Z Max Single; tips=0,1,2,3,4,5,6,7	02_PCR_Ver1_0	106

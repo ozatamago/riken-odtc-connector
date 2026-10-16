@@ -23,6 +23,9 @@ TYPES = (
     "LihaTransferIndividualVolumesSmartCommand",
     "AddLabwareDataV1", "RemoveLabwareDataV1",
     "CgaGetFingersScriptCommandDataV1", "CgaDropFingersScriptCommandDataV1",
+    # worklists (02, 05, 07) and variables written to / read from files (results of DetectLiquid)
+    "RUPGetFileStatement", "WorklistImportStatementDataV2", "LoadWorklistStatementDataV4",
+    "ExecuteWorklistStatementDataV1", "ExportVariableStatement", "ImportVariableStatement",
 )
 OPEN = re.compile(r'<Object Type="([^"]+)">|</Object>')
 

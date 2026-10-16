@@ -1,0 +1,19 @@
+<Object Type="Tecan.Core.Scripting.VariableExportImport.ImportVariableStatement">
+<ImportVariableStatement>
+<Variables>
+<Object Type="System.String">
+<string>SouceLabel</string>
+</Object>
+</Variables>
+<ImportFile>NameImportFile</ImportFile>
+<ReadLine>True</ReadLine>
+<Line>1+LP</Line>
+<StartInColumn>True</StartInColumn>
+<Column>3</Column>
+<HasHeader>False</HasHeader>
+<DelimiterCode>44</DelimiterCode>
+<IsBreakpoint>False</IsBreakpoint>
+<IsDisabledForExecution>False</IsDisabledForExecution>
+<LineNumber>0</LineNumber>
+</ImportVariableStatement>
+</Object>

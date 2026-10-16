@@ -1,0 +1,19 @@
+<Object Type="Tecan.Core.Scripting.VariableExportImport.ImportVariableStatement">
+<ImportVariableStatement>
+<Variables>
+<Object Type="System.String">
+<string>Message</string>
+</Object>
+</Variables>
+<ImportFile>"C:\Users\Tecan\Documents\Tauch tools\Message patern Purification using Zyppy.txt"</ImportFile>
+<ReadLine>True</ReadLine>
+<Line>Loop1</Line>
+<StartInColumn>False</StartInColumn>
+<Column>1</Column>
+<HasHeader>False</HasHeader>
+<DelimiterCode>44</DelimiterCode>
+<IsBreakpoint>False</IsBreakpoint>
+<IsDisabledForExecution>False</IsDisabledForExecution>
+<LineNumber>0</LineNumber>
+</ImportVariableStatement>
+</Object>

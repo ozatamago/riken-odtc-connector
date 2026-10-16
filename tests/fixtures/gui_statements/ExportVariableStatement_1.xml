@@ -1,0 +1,17 @@
+<Object Type="Tecan.Core.Scripting.VariableExportImport.ExportVariableStatement">
+<ExportVariableStatement>
+<Variables>
+<Object Type="System.String">
+<string>PostMixVol</string>
+</Object>
+</Variables>
+<ExportFile>"C:\ZyppyFiles\PostMixVol.txt"</ExportFile>
+<WriteHeader>False</WriteHeader>
+<ReplaceExistingFile>True</ReplaceExistingFile>
+<ExportStringsWithQuotes>False</ExportStringsWithQuotes>
+<DelimiterCode>44</DelimiterCode>
+<IsBreakpoint>False</IsBreakpoint>
+<IsDisabledForExecution>False</IsDisabledForExecution>
+<LineNumber>0</LineNumber>
+</ExportVariableStatement>
+</Object>

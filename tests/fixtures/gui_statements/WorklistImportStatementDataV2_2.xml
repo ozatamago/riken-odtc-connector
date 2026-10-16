@@ -1,0 +1,66 @@
+<Object Type="Tecan.Core.Worklist.Data.WorklistImportStatementDataV2">
+<WorklistImportStatementDataV2>
+<CsvExpressionOrFilename>NameImportFile</CsvExpressionOrFilename>
+<StartLinenumber>2</StartLinenumber>
+<IsStopWithLastLine>True</IsStopWithLastLine>
+<StopWithLine>LP</StopWithLine>
+<SelectedColumnSeperator>,</SelectedColumnSeperator>
+<SelectedSourceLabware>
+<guid>00000000-0000-0000-0000-000000000000</guid>
+</SelectedSourceLabware>
+<SelectedSourceLabwareForce>False</SelectedSourceLabwareForce>
+<SelectedDestinationLabware>
+<guid>00000000-0000-0000-0000-000000000000</guid>
+</SelectedDestinationLabware>
+<InputParameters>
+<Object Type="Tecan.Core.Worklist.InputParameter">
+<InputParameter>
+<ColumnName>A</ColumnName>
+<ColumnIndex>0</ColumnIndex>
+<GwlIndex>SourceLabel</GwlIndex>
+</InputParameter>
+</Object>
+<Object Type="Tecan.Core.Worklist.InputParameter">
+<InputParameter>
+<ColumnName>B</ColumnName>
+<ColumnIndex>1</ColumnIndex>
+<GwlIndex>SourcePosition</GwlIndex>
+</InputParameter>
+</Object>
+<Object Type="Tecan.Core.Worklist.InputParameter">
+<InputParameter>
+<ColumnName>C</ColumnName>
+<ColumnIndex>2</ColumnIndex>
+<GwlIndex>DestLabel</GwlIndex>
+</InputParameter>
+</Object>
+<Object Type="Tecan.Core.Worklist.InputParameter">
+<InputParameter>
+<ColumnName>D</ColumnName>
+<ColumnIndex>3</ColumnIndex>
+<GwlIndex>DestPosition</GwlIndex>
+</InputParameter>
+</Object>
+<Object Type="Tecan.Core.Worklist.InputParameter">
+<InputParameter>
+<ColumnName>E</ColumnName>
+<ColumnIndex>4</ColumnIndex>
+<GwlIndex>Volume</GwlIndex>
+</InputParameter>
+</Object>
+</InputParameters>
+<GwlExpressionOrFilename>NameExportFile</GwlExpressionOrFilename>
+<Data Type="Tecan.Core.Worklist.Data.WorklistStatementBaseDataV1">
+<WorklistStatementBaseDataV1>
+<Data Type="Tecan.Core.Scripting.Helpers.ScriptStatementBaseDataV1">
+<ScriptStatementBaseDataV1>
+<IsBreakpoint>False</IsBreakpoint>
+<IsDisabledForExecution>False</IsDisabledForExecution>
+<GroupLineNumber>0</GroupLineNumber>
+<LineNumber>0</LineNumber>
+</ScriptStatementBaseDataV1>
+</Data>
+</WorklistStatementBaseDataV1>
+</Data>
+</WorklistImportStatementDataV2>
+</Object>

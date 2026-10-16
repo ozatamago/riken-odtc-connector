@@ -106,8 +106,9 @@ def extract_references(xml: str) -> dict[str, list]:
         refs["auxiliary_liquid_classes"].update(v for v in re.findall(rf"<{tag}>([^<]+)</{tag}>", t) if v.strip())
     refs["tips"].update(m.strip() for m in re.findall(r"TOOLNAME:([^<]+)<", t))
     refs["labware_types"].update(re.findall(r"<LabwareType>([^<]+)</LabwareType>", t))
-    for tag in ("LabwareName", "LabwareLable", "Labware"):
-        refs["labware"].update(v for v in re.findall(rf"<{tag}>([^<]+)</{tag}>", t) if v.strip())
+    for tag in ("LabwareName", "LabwareLable", "Labware", "DitiWaste", "WashWasteName"):
+        # worklist statements write names as string expressions ("FCA Thru Deck Waste Chute_1")
+        refs["labware"].update(v.strip().strip('"') for v in re.findall(rf"<{tag}>([^<]+)</{tag}>", t) if v.strip())
     # RGA: <Location>..<Site>; AddLabware: <Location>..<Position>
     for m in re.finditer(r"<Location>([^<]*)</Location>", t):
         after = t[m.end():m.end() + 600]

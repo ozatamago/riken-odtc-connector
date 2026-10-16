@@ -1,0 +1,17 @@
+<Object Type="Tecan.Core.Worklist.Data.ExecuteWorklistStatementDataV1">
+<ExecuteWorklistStatementDataV1>
+<DeleteGwlScripts>False</DeleteGwlScripts>
+<Data Type="Tecan.Core.Worklist.Data.WorklistStatementBaseDataV1">
+<WorklistStatementBaseDataV1>
+<Data Type="Tecan.Core.Scripting.Helpers.ScriptStatementBaseDataV1">
+<ScriptStatementBaseDataV1>
+<IsBreakpoint>False</IsBreakpoint>
+<IsDisabledForExecution>False</IsDisabledForExecution>
+<GroupLineNumber>0</GroupLineNumber>
+<LineNumber>0</LineNumber>
+</ScriptStatementBaseDataV1>
+</Data>
+</WorklistStatementBaseDataV1>
+</Data>
+</ExecuteWorklistStatementDataV1>
+</Object>
