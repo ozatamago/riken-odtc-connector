@@ -74,6 +74,7 @@ def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
     cameras = DeckCameras(config.cameras, config.fluent.definitions.ssh_target,
                           config.fluent.definitions.remote_dir + "\\records", config.fluent.dry_run)
     backend.cameras = cameras
+    cameras.session_dir = lambda: backend.session_dir
     return [
         # RGA
         RgaController(backend, tracker),

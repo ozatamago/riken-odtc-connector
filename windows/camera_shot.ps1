@@ -6,13 +6,21 @@
 #
 # Output: one line per camera, "OK <name> <png path> <preview path> <width>x<height>" or "ERROR <name> <message>".
 # Do not run this while FluentControl's own Deck Check uses the cameras (opening a camera from two programs at once
-# can disturb it).
+# can disturb it). While camera_videos.ps1 records (its state file exists), this refuses: ask the recorder instead.
 param(
   [string]$Cameras = 'Center=234500007',
   [string]$OutDir = 'C:\Users\Tecan\OFML\screen',
   [string]$Tag = '',
-  [int]$PreviewWidth = 1280
+  [int]$PreviewWidth = 1280,
+  [string]$RecorderState = 'C:\Users\Tecan\OFML\state\recorder.json'
 )
+if (Test-Path $RecorderState) {
+  $rec = Get-Content $RecorderState -Raw | ConvertFrom-Json
+  if (Get-Process -Id $rec.pid -ErrorAction SilentlyContinue) {
+    foreach ($pair in $Cameras.Split(',')) { "ERROR " + $pair.Split('=')[0] + " the video recorder is using the cameras (pid " + $rec.pid + ")" }
+    exit
+  }
+}
 $dir = 'C:\Program Files (x86)\Common Files\Tecan\Core\Recent'
 $env:PATH = $dir + ';' + $env:PATH
 Add-Type -AssemblyName System.Drawing

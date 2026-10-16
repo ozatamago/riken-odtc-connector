@@ -373,6 +373,13 @@ class FluentOdtcBackend:
     def run_started(self) -> str:
         return self._session["started"] if self._session else ""
 
+    @property
+    def session_dir(self) -> str:
+        """Folder of the open run's record on the Fluent PC, or "" when no run is open."""
+        if not self._session:
+            return ""
+        return f"{self.config.definitions.remote_dir.rstrip(chr(92))}\\records\\{self._session['rel']}"
+
     # ---- Entry points called from the Features
     async def run_macro(self, name: str, settings: str | None = None, report=lambda _: None) -> float:
         """Run one ODTC macro and return the seconds the macro itself took. Only one at a time."""
