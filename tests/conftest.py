@@ -11,5 +11,5 @@ def _offline(tmp_path, monkeypatch):
     def offline(*_a, **_k):
         raise DefinitionCheckFailed("offline (tests)")
 
-    for name in ("index", "read", "read_baseline", "write_baseline", "store_record", "run_ps"):
+    for name in ("index", "read", "read_baseline", "write_baseline", "store_record", "run_ps", "read_file", "write_file", "_ssh", "_scp"):
         monkeypatch.setattr(FluentPc, name, offline)

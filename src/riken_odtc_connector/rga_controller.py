@@ -4,15 +4,21 @@ FluentControl resets labware positions to their worktable defaults at the start 
 To move and return a plate in separate runs, this connector remembers the current position and, at the start of the
 next run, aligns FluentControl's record with the actual position via RemoveLabware -> AddLabware before moving
 (the same approach as the 10-09 recovery).
+
+The positions are kept on the Fluent PC (``C:\\Users\\Tecan\\OFML\\state\\labware_positions.json``) and read
+before every use, so they survive a restart and stay correct whichever computer runs the connector. If the Fluent PC
+cannot be reached, moves are refused rather than guessed. In a dry run, moves are remembered in memory only.
 """
 
 import dataclasses
 import json
 import pathlib
+import re
 
 from unitelabs.cdk import sila
 from unitelabs.cdk.config import Config
 
+from .definitions import DefinitionCheckFailed, FluentPc
 from .fluent_backend import BackendError, FluentOdtcBackend
 from .infinite.features import _with_progress
 from .infinite.xml import add_labware_xml, remove_labware_xml, rga_xml
@@ -28,18 +34,49 @@ class PlateTransferConfig(Config):
             "96 Well Flat_Custom[001]": {"type": "96 Well Flat_Custom", "base_location": "Nest7mm_Pos", "base_site": 6},
         }
     )
-    positions_file: str = "~/.riken_fluent780/labware_positions.json"
-    """File holding the current positions of moved labware, so they survive a connector restart."""
+    positions_file: str = r"C:\Users\Tecan\OFML\state\labware_positions.json"
+    """File holding the current positions of moved labware. A Windows path (C:\\...) is on the Fluent PC;
+    any other path is on the computer running the connector (used by the tests)."""
 
 
 class LabwareTracker:
-    def __init__(self, config: PlateTransferConfig):
+    def __init__(self, config: PlateTransferConfig, pc: FluentPc | None = None, persist: bool = True):
         self.config = config
-        self.path = pathlib.Path(config.positions_file).expanduser()
+        self.remote = bool(re.match(r"^[A-Za-z]:\\", config.positions_file))
+        self.pc = pc
+        self.persist = persist
+        self._dry: dict[str, list] | None = None
+        """Positions changed by dry-run moves (never written anywhere)."""
+
+    def _load(self) -> dict[str, list]:
         try:
-            self.positions: dict[str, list] = json.loads(self.path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, ValueError):
-            self.positions = {}
+            if self.remote:
+                if self.pc is None:
+                    raise BackendError("No connection to the Fluent PC configured for labware positions")
+                text = self.pc.read_file(self.config.positions_file)
+            else:
+                path = pathlib.Path(self.config.positions_file).expanduser()
+                text = path.read_text(encoding="utf-8") if path.exists() else None
+        except DefinitionCheckFailed as exc:
+            raise BackendError(f"Cannot read the labware positions on the Fluent PC: {exc}") from None
+        return json.loads(text) if text and text.strip() else {}
+
+    def _save(self, positions: dict[str, list]) -> None:
+        text = json.dumps(positions, ensure_ascii=False, indent=1)
+        if self.remote:
+            try:
+                self.pc.write_file(self.config.positions_file, text)
+            except DefinitionCheckFailed as exc:
+                raise BackendError(f"Cannot save the labware positions on the Fluent PC: {exc}") from None
+        else:
+            path = pathlib.Path(self.config.positions_file).expanduser()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+
+    @property
+    def positions(self) -> dict[str, list]:
+        """Labware that is away from its base position: name -> [location, site]. Read fresh on every use."""
+        return dict(self._dry) if self._dry is not None else self._load()
 
     def spec(self, labware: str) -> dict:
         if labware not in self.config.labware:
@@ -61,12 +98,15 @@ class LabwareTracker:
         return labware in self.positions
 
     def record(self, labware: str, location: str, site: int) -> None:
+        positions = self.positions
         if (location, int(site)) == self.base(labware):
-            self.positions.pop(labware, None)
+            positions.pop(labware, None)
         else:
-            self.positions[labware] = [location, int(site)]
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.positions, ensure_ascii=False, indent=1), encoding="utf-8")
+            positions[labware] = [location, int(site)]
+        if self.persist:
+            self._save(positions)
+        else:
+            self._dry = positions
 
     def move_steps(self, labware: str, location: str, site: int) -> list[tuple[str, str]]:
         """Commands to move from the current position to (location, site); if not at base, first fix FluentControl's record."""

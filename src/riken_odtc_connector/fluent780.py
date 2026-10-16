@@ -17,6 +17,7 @@ import dataclasses
 from unitelabs.cdk import Connector, ConnectorBaseConfig, SiLAServerConfig, sila
 
 from .door_controller import DoorController
+from .definitions import FluentPc
 from .fluent_backend import FluentBackendConfig, FluentOdtcBackend
 from .infinite.features import AbsorbanceReader, FluentPlateHandling, TrayController
 from .infinite.reader import FluentInfiniteReader, InfiniteConfig
@@ -63,7 +64,7 @@ def build_features(config: Fluent780ConnectorConfig) -> list[sila.Feature]:
     """Build the Features of all devices, sharing one backend."""
     backend = FluentOdtcBackend(config.fluent)
     reader = FluentInfiniteReader(backend, config.infinite)
-    tracker = LabwareTracker(config.plates)
+    tracker = LabwareTracker(config.plates, FluentPc(config.fluent.definitions), persist=not config.fluent.dry_run)
     return [
         # RGA
         RgaController(backend, tracker),

@@ -202,6 +202,23 @@ class FluentPc:
         finally:
             os.unlink(local)
 
+    def read_file(self, path: str) -> str | None:
+        """Text of a file on the Fluent PC, or None if it does not exist."""
+        out = self._ssh(f'powershell -NoProfile -Command "if (Test-Path \'{path}\') {{ \'1\'; Get-Content \'{path}\' -Raw -Encoding UTF8 }} else {{ \'0\' }}"')
+        text = out.decode("utf-8-sig").replace("\r", "")
+        return text[2:] if text.startswith("1") else None
+
+    def write_file(self, path: str, text: str) -> None:
+        folder = path.rsplit("\\", 1)[0]
+        with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as f:
+            f.write(text)
+            local = f.name
+        try:
+            self._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{folder}\' | Out-Null"')
+            self._scp(local, self._remote(path))
+        finally:
+            os.unlink(local)
+
     def store_record(self, local: pathlib.Path, remote_rel: str, definitions: list[str]) -> None:
         """Copy a local record folder (or file) to OFML\\records\\<remote_rel> and copy the definition files into it."""
         target = f"{self.root}\\records\\{remote_rel}"

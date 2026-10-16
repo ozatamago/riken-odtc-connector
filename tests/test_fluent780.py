@@ -93,3 +93,40 @@ def test_features_can_be_turned_into_sila_definitions():
     app = Connector(config)
     for feature in build_features(config):
         app.register(feature)
+
+
+class _FakePcFiles:
+    def __init__(self):
+        self.files = {}
+
+    def read_file(self, path):
+        return self.files.get(path)
+
+    def write_file(self, path, text):
+        self.files[path] = text
+
+
+def test_positions_live_on_the_fluent_pc_and_dry_runs_do_not_change_them():
+    from riken_odtc_connector.rga_controller import LabwareTracker, PlateTransferConfig
+
+    pc = _FakePcFiles()
+    plate = "96 Well Flat_Custom[001]"
+    live = LabwareTracker(PlateTransferConfig(), pc)
+    assert live.remote and live.where(plate) == ("Nest7mm_Pos", 6)
+    live.record(plate, "Regrip_Pos", 1)
+    path = PlateTransferConfig().positions_file
+    assert '"Regrip_Pos"' in pc.files[path]
+    # another connector process (e.g. after a restart) reads the same state
+    assert LabwareTracker(PlateTransferConfig(), pc).where(plate) == ("Regrip_Pos", 1)
+    dry = LabwareTracker(PlateTransferConfig(), pc, persist=False)
+    dry.record(plate, "Nest7mm_Pos", 6)
+    assert dry.where(plate) == ("Nest7mm_Pos", 6) and '"Regrip_Pos"' in pc.files[path]
+
+
+def test_unreachable_fluent_pc_refuses_instead_of_guessing():
+    from riken_odtc_connector.definitions import DefinitionsConfig, FluentPc
+    from riken_odtc_connector.rga_controller import LabwareTracker, PlateTransferConfig
+
+    t = LabwareTracker(PlateTransferConfig(), FluentPc(DefinitionsConfig()))  # offline in tests
+    with pytest.raises(BackendError, match="Cannot read the labware positions"):
+        t.where("96 Well Flat_Custom[001]")
