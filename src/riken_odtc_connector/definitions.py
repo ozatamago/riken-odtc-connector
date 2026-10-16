@@ -4,29 +4,27 @@ Rule of the lab (2026-10-16): before anything runs on the Fluent, confirm the de
 it uses (liquid classes, tips, labware, locations, the worktable, arms, device macros), save them, then run. This makes
 accidents less likely and errors easier to trace.
 
-How it works
-------------
-1. A local mirror of the definition folders of the FluentControl database (``C:\\ProgramData\\Tecan\\VisionX\\DataBase``)
-   is kept in ``<record_dir>/database``. Before each operation only changed files are copied over SSH (by size and
-   modification time).
-2. The names used by the XML about to be sent are extracted (``extract_references``) and looked up in the mirror.
-   Missing names, locations that the worktable does not have, and liquid classes without an Air FCA part (the arm of
-   this instrument) refuse the operation.
-3. The SHA-256 of every definition file used is compared with the accepted baseline (``<record_dir>/baseline.json``).
-   If a file changed since it was last accepted, the operation is refused and the change is listed. After checking,
-   ``accept_pending_changes`` accepts it and the operation can be sent again. Files seen for the first time are
-   accepted and noted in the record.
-4. A record folder ``runs/<time>_<operation>/`` gets the XML sent, ``manifest.json`` (each name, the file it resolved
-   to, its hash and key values), copies of the definition files, and ``result.json`` when it finishes.
-5. Records are kept on the Fluent PC (``remote_record_dir``, 2026-10-16: the lab wants them next to the instrument).
-   Each record is written locally first and copied there as soon as it finishes. If the copy fails, the record stays
-   in ``<record_dir>/runs`` with an ``.upload_failed`` mark and is copied again before the next operation.
-   Dry runs never contact the Fluent PC, so their records stay local.
+Everything is kept on the Fluent PC under ``C:\\Users\\Tecan\\OFML`` (the computer running the connector has little
+space, and the lab wants the records next to the instrument):
+
+- ``OFML\\definitions\\index.json``: one entry per definition file of the FluentControl database (size, time, SHA-256,
+  object name; the location name of sites; whether a liquid class has an Air FCA part). Only changed files are hashed.
+- ``OFML\\definitions\\baseline.json``: the accepted hash of each definition file.
+- ``OFML\\records\\runs\\<time>_<operation>\\``: the XML sent (``steps``), ``manifest.json`` (each name used, the file it
+  resolved to, its hash and key values), copies of the definition files (``definitions``), ``result.json``.
+
+Before each operation the index is brought up to date, the names the XML uses are looked up, and the operation is
+refused if a name is missing, a location or site is not on the worktable, a liquid class has no Air FCA part (the arm
+of this instrument), or a definition file changed since it was last accepted (``accept_pending_changes`` after
+checking). Files seen for the first time are accepted and noted in the record.
+
+Nothing is kept on the computer running the connector, except (a) a record whose copy to the Fluent PC failed, kept in
+``~/.riken_fluent780/pending`` and copied again before the next operation, and (b) dry-run records in
+``~/.riken_fluent780/dry-run``, which are deleted as soon as a real operation has finished.
 """
 
 import dataclasses
 import datetime
-import hashlib
 import html
 import json
 import os
@@ -36,12 +34,10 @@ import shutil
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
-import zipfile
 
 from unitelabs.cdk.config import Config
 
-REMOTE_ROOT = r"C:\ProgramData\Tecan\VisionX\DataBase"
-REMOTE_WORK = r"C:\Users\Tecan\OFML_screen\definition_sync"
+REMOTE_DB = r"C:\ProgramData\Tecan\VisionX\DataBase"
 # Folders of the database that hold definitions (meshes, textures, connectors and undo history are not needed)
 FOLDERS = (
     r"SystemSpecific\LiquidClasses",
@@ -63,15 +59,16 @@ class DefinitionCheckFailed(Exception):
 
 @dataclasses.dataclass
 class DefinitionsConfig(Config):
-    """Where definitions are mirrored and records are kept."""
+    """Checking of definitions and where records are kept."""
 
     enabled: bool = True
-    record_dir: str = "~/.riken_fluent780"
     workspace: str = "WT2411004293_Ver.0.5_OFML"
     """Worktable used by OFML_ApiHost. Locations are checked against it."""
     ssh_target: str = "Tecan@10.5.1.156"
-    remote_record_dir: str = r"C:\Users\Tecan\OFML_records"
-    """Where records are kept on the Fluent PC (runs/ below it). Empty: keep records only on this computer."""
+    remote_dir: str = r"C:\Users\Tecan\OFML"
+    """Folder on the Fluent PC that holds the definition index, the baseline and the records."""
+    local_dir: str = "~/.riken_fluent780"
+    """Only for dry-run records and records whose copy to the Fluent PC failed."""
 
 
 # ---------------------------------------------------------------- names used by an XML command
@@ -116,125 +113,106 @@ def extract_references(xml: str) -> dict[str, list]:
     return {k: sorted(v) for k, v in refs.items()}
 
 
-# ---------------------------------------------------------------- local mirror of the database
-def _sha256(path: pathlib.Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
+# ---------------------------------------------------------------- the Fluent PC side
+INDEX_PS1 = r"""
+$ErrorActionPreference = 'Stop'
+$db = '__DB__'; $dir = '__DIR__\definitions'; $idx = "$dir\index.json"
+New-Item -ItemType Directory -Force $dir | Out-Null
+$old = @{}
+if (Test-Path $idx) { foreach ($e in (Get-Content $idx -Raw -Encoding UTF8 | ConvertFrom-Json)) { $old[$e.path] = $e } }
+$out = New-Object System.Collections.ArrayList
+foreach ($f in Get-ChildItem __FOLDERS__ -Recurse -File) {
+  $rel = $f.FullName.Substring($db.Length + 1); $ticks = [string]$f.LastWriteTimeUtc.Ticks
+  $e = $old[$rel]
+  if (-not $e -or $e.size -ne $f.Length -or $e.ticks -ne $ticks) {
+    $head = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($f.FullName))
+    $m = [regex]::Match($head, '<ObjectName>([^<]*)</ObjectName>')
+    $g = [regex]::Match($head, '<LocationGroupName>([^<]*)</LocationGroupName>')
+    $e = [pscustomobject]@{ path = $rel; size = $f.Length; ticks = $ticks
+      sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $f.FullName).Hash.ToLower()
+      name = $m.Groups[1].Value.Trim(); location = $g.Groups[1].Value
+      airfca = $head.Contains('<PipettingDeviceType>AirFca</PipettingDeviceType>') }
+  }
+  [void]$out.Add($e)
+}
+$json = ConvertTo-Json -InputObject @($out) -Compress -Depth 3
+[System.IO.File]::WriteAllText($idx, $json, (New-Object System.Text.UTF8Encoding $false))
+$json
+"""
 
 
-def _object_name(path: pathlib.Path) -> str:
-    with open(path, "rb") as f:
-        head = f.read(4096).decode("utf-8", errors="replace")
-    m = re.search(r"<ObjectName>([^<]*)</ObjectName>", head)
-    return m.group(1).strip() if m else ""
+class FluentPc:
+    """Access to the definitions and records on the Fluent PC over SSH."""
 
+    def __init__(self, config: DefinitionsConfig):
+        self.config = config
+        self.root = config.remote_dir.rstrip("\\")
 
-class DatabaseMirror:
-    """Copy of the definition folders of the FluentControl database, refreshed over SSH."""
-
-    def __init__(self, root: pathlib.Path, ssh_target: str):
-        self.root = root
-        self.ssh_target = ssh_target
-        self.files = root / "files"
-        self.index_path = root / "index.json"
-        self.index: dict[str, dict] = json.loads(self.index_path.read_text()) if self.index_path.exists() else {}
-
-    # -- remote helpers
-    def _ssh(self, command: str, timeout: int = 300) -> str:
-        out = subprocess.run(["ssh", "-o", "ConnectTimeout=15", "-o", "BatchMode=yes", self.ssh_target, command],
+    def _ssh(self, command: str, timeout: int = 300) -> bytes:
+        out = subprocess.run(["ssh", "-o", "ConnectTimeout=15", "-o", "BatchMode=yes", self.config.ssh_target, command],
                              capture_output=True, timeout=timeout)
         if out.returncode != 0:
             raise DefinitionCheckFailed(f"SSH to the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
-        return out.stdout.decode("utf-8", errors="replace").replace("\r", "")
+        return out.stdout
 
-    def _ps_file(self, script: str, timeout: int = 300) -> str:
-        """Copy a PowerShell script to the Fluent PC and run it (avoids quoting problems)."""
+    def _scp(self, src: str, dest: str, recursive: bool = False) -> None:
+        out = subprocess.run(["scp", "-q"] + (["-r"] if recursive else []) + [src, dest], capture_output=True, timeout=600)
+        if out.returncode != 0:
+            raise DefinitionCheckFailed(f"Copy to/from the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
+
+    def _remote(self, path: str) -> str:
+        return f"{self.config.ssh_target}:{path.replace(chr(92), '/')}"
+
+    def run_ps(self, script: str, timeout: int = 600) -> bytes:
+        """Copy a PowerShell script into OFML\\work and run it (avoids quoting problems)."""
+        self._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{self.root}\\work\' | Out-Null"')
         with tempfile.NamedTemporaryFile("w", suffix=".ps1", delete=False, encoding="utf-8-sig") as f:
             f.write(script)
             local = f.name
         try:
-            self._scp_to(local, REMOTE_WORK + r"\run.ps1")
-            return self._ssh(f'powershell -NoProfile -ExecutionPolicy Bypass -File "{REMOTE_WORK}\\run.ps1"', timeout)
+            self._scp(local, self._remote(self.root + r"\work\run.ps1"))
+        finally:
+            os.unlink(local)
+        return self._ssh(f'powershell -NoProfile -ExecutionPolicy Bypass -File "{self.root}\\work\\run.ps1"', timeout)
+
+    def index(self) -> dict[str, dict]:
+        folders = ",".join(f"'{REMOTE_DB}\\{f}'" for f in FOLDERS)
+        script = INDEX_PS1.replace("__DB__", REMOTE_DB).replace("__DIR__", self.root).replace("__FOLDERS__", folders)
+        entries = json.loads(self.run_ps(script).decode("utf-8-sig"))
+        return {e["path"]: e for e in entries}
+
+    def read(self, rel: str) -> bytes:
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = os.path.join(tmp, "f")
+            self._scp(self._remote(f"{REMOTE_DB}\\{rel}"), dest)
+            return pathlib.Path(dest).read_bytes()
+
+    def read_baseline(self) -> dict[str, str]:
+        out = self._ssh(f'powershell -NoProfile -Command "$p=\'{self.root}\\definitions\\baseline.json\'; '
+                        'if (Test-Path $p) { Get-Content $p -Raw -Encoding UTF8 } else { \'{}\' }"')
+        return json.loads(out.decode("utf-8-sig") or "{}")
+
+    def write_baseline(self, baseline: dict[str, str]) -> None:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump(baseline, f, ensure_ascii=False, indent=1)
+            local = f.name
+        try:
+            self._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{self.root}\\definitions\' | Out-Null"')
+            self._scp(local, self._remote(self.root + r"\definitions\baseline.json"))
         finally:
             os.unlink(local)
 
-    def _scp_to(self, local: str, remote: str) -> None:
-        self._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{REMOTE_WORK}\' | Out-Null"')
-        out = subprocess.run(["scp", "-q", local, f"{self.ssh_target}:{remote.replace(chr(92), '/')}"],
-                             capture_output=True, timeout=300)
-        if out.returncode != 0:
-            raise DefinitionCheckFailed(f"Copy to the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
-
-    def _scp_from(self, remote: str, local: str) -> None:
-        out = subprocess.run(["scp", "-q", f"{self.ssh_target}:{remote.replace(chr(92), '/')}", local],
-                             capture_output=True, timeout=600)
-        if out.returncode != 0:
-            raise DefinitionCheckFailed(f"Copy from the Fluent PC failed: {out.stderr.decode(errors='replace')[:300]}")
-
-    def refresh(self) -> list[str]:
-        """Bring the mirror up to date. Returns the relative paths that were (re)copied."""
-        folders = ",".join(f"'{REMOTE_ROOT}\\{f}'" for f in FOLDERS)
-        listing = self._ps_file(
-            f"$r = '{REMOTE_ROOT}'\n"
-            f"Get-ChildItem {folders} -Recurse -File | ForEach-Object {{ "
-            "$_.FullName.Substring($r.Length + 1) + \"`t\" + $_.Length + \"`t\" + $_.LastWriteTimeUtc.Ticks }\n")
-        remote = {}
-        for line in listing.splitlines():
-            parts = line.split("\t")
-            if len(parts) == 3:
-                remote[parts[0]] = (int(parts[1]), parts[2])
-        changed = [p for p, (size, ticks) in remote.items()
-                   if self.index.get(p, {}).get("size") != size or self.index.get(p, {}).get("ticks") != ticks]
-        removed = [p for p in self.index if p not in remote]
-        if changed:
-            with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8-sig") as f:
-                f.write("\n".join(changed))
-                listfile = f.name
-            try:
-                self._scp_to(listfile, REMOTE_WORK + r"\changed.txt")
-            finally:
-                os.unlink(listfile)
-            self._ps_file(
-                f"$r = '{REMOTE_ROOT}'; $w = '{REMOTE_WORK}'\n"
-                "Remove-Item -Recurse -Force \"$w\\pack\", \"$w\\pack.zip\" -ErrorAction SilentlyContinue\n"
-                "foreach ($p in Get-Content \"$w\\changed.txt\") {\n"
-                "  $d = Join-Path \"$w\\pack\" $p; New-Item -ItemType Directory -Force (Split-Path $d) | Out-Null\n"
-                "  Copy-Item -LiteralPath (Join-Path $r $p) -Destination $d }\n"
-                "Compress-Archive -Path \"$w\\pack\\*\" -DestinationPath \"$w\\pack.zip\" -Force\n", timeout=900)
-            with tempfile.TemporaryDirectory() as tmp:
-                zpath = os.path.join(tmp, "pack.zip")
-                self._scp_from(REMOTE_WORK + r"\pack.zip", zpath)
-                with zipfile.ZipFile(zpath) as z:
-                    for info in z.infolist():
-                        rel = info.filename.replace("\\", "/")
-                        if rel.endswith("/"):
-                            continue
-                        dest = self.files / rel
-                        dest.parent.mkdir(parents=True, exist_ok=True)
-                        with z.open(info) as src, open(dest, "wb") as out:
-                            shutil.copyfileobj(src, out)
-        for p in changed:
-            local = self.files / p.replace("\\", "/")
-            size, ticks = remote[p]
-            self.index[p] = {"size": size, "ticks": ticks, "sha256": _sha256(local), "name": _object_name(local)}
-        for p in removed:
-            self.index.pop(p, None)
-            (self.files / p.replace("\\", "/")).unlink(missing_ok=True)
-        self.root.mkdir(parents=True, exist_ok=True)
-        self.index_path.write_text(json.dumps(self.index, ensure_ascii=False, indent=1))
-        return changed
-
-    # -- lookups
-    def local(self, rel: str) -> pathlib.Path:
-        return self.files / rel.replace("\\", "/")
-
-    def find(self, name: str, ext: str) -> str | None:
-        """Relative path of the definition with this object name and extension (e.g. ".xlqc"), or None."""
-        hits = [p for p, v in self.index.items() if p.lower().endswith(ext) and v.get("name") == name]
-        return sorted(hits)[0] if hits else None
+    def store_record(self, local: pathlib.Path, remote_rel: str, definitions: list[str]) -> None:
+        """Copy a local record folder (or file) to OFML\\records\\<remote_rel> and copy the definition files into it."""
+        target = f"{self.root}\\records\\{remote_rel}"
+        parent = target.rsplit("\\", 1)[0]
+        self._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{parent}\' | Out-Null"')
+        self._scp(str(local), self._remote(parent) + "/", recursive=local.is_dir())
+        if definitions:
+            lines = "\n".join(
+                f"$d = '{target}\\definitions\\{rel}'; New-Item -ItemType Directory -Force (Split-Path $d) | Out-Null; "
+                f"Copy-Item -LiteralPath '{REMOTE_DB}\\{rel}' -Destination $d" for rel in definitions)
+            self.run_ps("$ErrorActionPreference = 'Stop'\n" + lines + "\n")
 
 
 # ---------------------------------------------------------------- worktable
@@ -242,15 +220,10 @@ C = "{http://schemas.datacontract.org/2004/07/Tecan.VisionX.Worktable.Core}"
 A = "{http://schemas.microsoft.com/2003/10/Serialization/Arrays}"
 
 
-def parse_workspace(mirror: DatabaseMirror, rel: str) -> tuple[dict[str, int], set[str]]:
-    """Location groups of a worktable with their number of sites, and the labels of the labware placed on it."""
-    site_group: dict[str, str] = {}
-    for p in mirror.index:
-        if p.lower().endswith(".xsit"):
-            text = mirror.local(p).read_text(encoding="utf-8-sig", errors="replace")
-            m = re.search(r"<LocationGroupName>([^<]*)</LocationGroupName>", text)
-            site_group[pathlib.PureWindowsPath(p).stem] = m.group(1) if m else ""
-    root = ET.parse(mirror.local(rel)).getroot()
+def parse_workspace(xml: bytes, site_location: dict[str, str]) -> tuple[dict[str, int], set[str]]:
+    """Location groups of a worktable with their number of sites, and the labels of the labware placed on it.
+    site_location maps a site template GUID to its location name."""
+    root = ET.fromstring(xml)
     groups: dict[str, int] = {}
     labels: set[str] = set()
 
@@ -263,7 +236,7 @@ def parse_workspace(mirror: DatabaseMirror, rel: str) -> tuple[dict[str, int], s
             sites = arr.find(C + "Sites")
             for kv in (list(sites) if sites is not None else []):
                 val = kv.find(A + "Value")
-                g = site_group.get(val.findtext(C + "BaseTemplateGuid") or "", "")
+                g = site_location.get(val.findtext(C + "BaseTemplateGuid") or "", "")
                 if g:
                     groups[g] = groups.get(g, 0) + 1
                 cc = val.find(C + "ConnectedComponent")
@@ -274,13 +247,8 @@ def parse_workspace(mirror: DatabaseMirror, rel: str) -> tuple[dict[str, int], s
     return groups, labels
 
 
-def liquid_class_has_part(path: pathlib.Path, part: str) -> bool:
-    text = path.read_text(encoding="utf-8-sig", errors="replace")
-    return f"<PipettingDeviceType>{part}</PipettingDeviceType>" in text
-
-
-def _tip_values(path: pathlib.Path) -> dict[str, str]:
-    u = _unescape(path.read_text(encoding="utf-8-sig", errors="replace"))
+def tip_values(xml: bytes) -> dict[str, str]:
+    u = _unescape(xml.decode("utf-8-sig", errors="replace"))
     kv = dict(re.findall(r"<(?:\w+:)?Key>([^<]*)</(?:\w+:)?Key>\s*<(?:\w+:)?Value[^>]*>(?:\s*<[^>]+>)*([^<]{0,80})", u))
     keep = ("DiTiTypeGroup", "TipCapacity", "Filter", "MaxNettoVolumeForTransferPhase", "ZTravel", "ZStart",
             "ZMax", "ZBottom", "MaxImmersionDepth")
@@ -289,69 +257,101 @@ def _tip_values(path: pathlib.Path) -> dict[str, str]:
 
 # ---------------------------------------------------------------- check and record
 class Preflight:
-    """Checks the definitions an operation uses and writes the run record."""
+    """Checks the definitions an operation uses and keeps the record on the Fluent PC."""
 
-    def __init__(self, config: DefinitionsConfig, dry_run: bool):
+    def __init__(self, config: DefinitionsConfig, dry_run: bool, pc: FluentPc | None = None):
         self.config = config
         self.dry_run = dry_run
-        self.dir = pathlib.Path(os.path.expanduser(config.record_dir))
-        self.mirror = DatabaseMirror(self.dir / "database", config.ssh_target)
-        self.baseline_path = self.dir / "baseline.json"
+        self.pc = pc or FluentPc(config)
+        self.local = pathlib.Path(os.path.expanduser(config.local_dir))
         self.pending: dict[str, dict] = {}
         """Changes found by the last refused check: relative path -> {name, accepted, now}."""
         self.last_record = ""
+        self._workspace_cache: tuple[str, tuple] | None = None
 
-    # ---- keeping records on the Fluent PC
-    def _remote_path(self, local: pathlib.Path) -> str:
-        rel = local.relative_to(self.dir).as_posix()
-        return self.config.remote_record_dir.rstrip("\\") + "\\" + rel.replace("/", "\\")
+    # ---- where records go
+    def location(self, remote_rel: str) -> str:
+        """Human-readable place of a record."""
+        if self.dry_run:
+            return str(self.local / "dry-run" / remote_rel.replace("\\", "/"))
+        return f"{self.config.remote_dir}\\records\\{remote_rel}"
 
-    def publish(self, local: pathlib.Path) -> None:
-        """Copy a finished record (folder or file) to the Fluent PC. Never raises; marks the record on failure."""
-        if self.dry_run or not self.config.remote_record_dir or not self.config.enabled:
+    def store(self, local: pathlib.Path, remote_rel: str, definitions: list[str]) -> None:
+        """Move a finished local record to the Fluent PC. Never raises: on failure it waits in pending/."""
+        if self.dry_run:
+            dest = self.local / "dry-run" / remote_rel.replace("\\", "/")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if local.is_dir():
+                shutil.copytree(local, dest, dirs_exist_ok=True)
+            else:
+                shutil.copy2(local, dest)
             return
-        mark = (local if local.is_dir() else local.parent) / ".upload_failed"
         try:
-            parent = self._remote_path(local.parent)
-            self.mirror._ssh(f'powershell -NoProfile -Command "New-Item -ItemType Directory -Force \'{parent}\' | Out-Null"')
-            out = subprocess.run(["scp", "-q", "-r", str(local), f"{self.config.ssh_target}:{parent.replace(chr(92), '/')}/"],
-                                 capture_output=True, timeout=600)
-            if out.returncode != 0:
-                raise DefinitionCheckFailed(out.stderr.decode(errors="replace")[:300])
-            mark.unlink(missing_ok=True)
-        except Exception as exc:  # noqa: BLE001 - the operation itself succeeded; keep the record and retry later
-            mark.write_text(f"{datetime.datetime.now().isoformat(timespec='seconds')} {exc}")
+            self.pc.store_record(local, remote_rel, definitions)
+        except Exception as exc:  # noqa: BLE001 - the operation itself is over; keep the record and retry later
+            stash = self.local / "pending" / remote_rel.replace("\\", "/")
+            stash.parent.mkdir(parents=True, exist_ok=True)
+            if local.is_dir():
+                shutil.copytree(local, stash, dirs_exist_ok=True)
+            else:
+                shutil.copy2(local, stash)
+            (stash.parent / (stash.name + ".pending.json")).write_text(
+                json.dumps({"remote_rel": remote_rel, "definitions": definitions, "error": str(exc)[:300]}))
 
-    def publish_pending(self) -> None:
-        """Copy records whose earlier copy to the Fluent PC failed."""
-        if self.dry_run or not self.config.remote_record_dir:
+    def store_pending(self) -> None:
+        """Copy records whose earlier copy to the Fluent PC failed, then remove them here."""
+        root = self.local / "pending"
+        if self.dry_run or not root.exists():
             return
-        for mark in sorted((self.dir / "runs").rglob(".upload_failed")):
-            mark.unlink()
-            self.publish(mark.parent)
+        for meta in sorted(root.rglob("*.pending.json")):
+            info = json.loads(meta.read_text())
+            item = meta.with_name(meta.name[: -len(".pending.json")])
+            try:
+                self.pc.store_record(item, info["remote_rel"], info["definitions"])
+            except Exception:  # noqa: BLE001 - try again next time
+                continue
+            if item.is_dir():
+                shutil.rmtree(item, ignore_errors=True)
+            else:
+                item.unlink(missing_ok=True)
+            meta.unlink()
 
-    def _baseline(self) -> dict[str, str]:
-        return json.loads(self.baseline_path.read_text()) if self.baseline_path.exists() else {}
+    def forget_dry_runs(self) -> None:
+        """Dry-run records are only kept until a real operation has run."""
+        shutil.rmtree(self.local / "dry-run", ignore_errors=True)
 
+    # ---- baseline
     def accept_pending_changes(self) -> list[str]:
         """Accept the changed definitions listed by the last refusal. Returns their names."""
-        base = self._baseline()
+        base = self.pc.read_baseline()
         names = []
         for rel, change in self.pending.items():
             base[rel] = change["now"]
             names.append(f"{change['name']} ({rel})")
-        self.dir.mkdir(parents=True, exist_ok=True)
-        self.baseline_path.write_text(json.dumps(base, ensure_ascii=False, indent=1))
+        if not self.dry_run:
+            self.pc.write_baseline(base)
         self.pending = {}
         return names
 
-    def begin(self, steps: list[tuple[str, str]], what: str, parent: pathlib.Path | None = None) -> "RunRecord":
-        """Check everything the steps use and create the record. Raises DefinitionCheckFailed to refuse."""
+    # ---- the check
+    def _workspace(self, index: dict[str, dict], rel: str) -> tuple[dict[str, int], set[str]]:
+        sha = index[rel]["sha256"]
+        if self._workspace_cache and self._workspace_cache[0] == sha:
+            return self._workspace_cache[1]
+        sites = {pathlib.PureWindowsPath(p).stem: e.get("location", "")
+                 for p, e in index.items() if p.lower().endswith(".xsit")}
+        result = parse_workspace(self.pc.read(rel), sites)
+        self._workspace_cache = (sha, result)
+        return result
+
+    def begin(self, steps: list[tuple[str, str]], what: str, session: str = "") -> "RunRecord":
+        """Check everything the steps use and start the record. Raises DefinitionCheckFailed to refuse.
+
+        session is the relative folder of an open run (StartRun); the record goes inside it."""
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3]
         slug = re.sub(r"[^A-Za-z0-9._-]+", "_", what)[:60].strip("_") or "operation"
-        folder = (parent or self.dir / "runs") / f"{stamp}_{slug}"
-        self.publish_pending()
-        record = RunRecord(folder, on_finish=self.publish)
+        remote_rel = (session + "\\" if session else "runs\\") + f"{stamp}_{slug}"
+        record = RunRecord(self, remote_rel)
         record.write_steps(steps)
         merged: dict[str, set] = {}
         for _, xml in steps:
@@ -360,22 +360,32 @@ class Preflight:
         refs = {k: sorted(v) for k, v in merged.items()}
         manifest: dict = {"operation": what, "time": stamp, "dry_run": self.dry_run, "references": refs,
                           "definitions": [], "warnings": [], "first_seen": []}
+        self.last_record = self.location(remote_rel)
         if not self.config.enabled:
             manifest["warnings"].append("definition check disabled in the configuration")
             record.write_manifest(manifest)
             return record
-        if self.dry_run and not self.mirror.index:
-            manifest["warnings"].append("dry run without a definition mirror: names recorded, not checked")
+        self.store_pending()
+        try:
+            index = self.pc.index()
+            base = self.pc.read_baseline()
+        except DefinitionCheckFailed as exc:
+            if not self.dry_run:
+                record.discard()
+                raise
+            manifest["warnings"].append(f"dry run: definitions not checked ({exc})")
             record.write_manifest(manifest)
             return record
-        if not self.dry_run:
-            manifest["mirror_refreshed"] = len(self.mirror.refresh())
+
+        def find(name: str, ext: str) -> str | None:
+            hits = sorted(p for p, e in index.items() if p.lower().endswith(ext) and e.get("name") == name)
+            return hits[0] if hits else None
 
         problems: list[str] = []
-        used: dict[str, str] = {}  # relative path -> name
+        used: dict[str, str] = {}
 
         def need(name: str, ext: str, kind: str) -> str | None:
-            rel = self.mirror.find(name, ext)
+            rel = find(name, ext)
             if rel is None:
                 problems.append(f"{kind} '{name}' is not defined in FluentControl")
             else:
@@ -383,13 +393,13 @@ class Preflight:
             return rel
 
         ws_rel = need(self.config.workspace, ".xwsp", "Worktable")
-        groups, placed = parse_workspace(self.mirror, ws_rel) if ws_rel else ({}, set())
+        groups, placed = self._workspace(index, ws_rel) if ws_rel else ({}, set())
         for lc in refs.get("liquid_classes", []):
             rel = need(lc, ".xlqc", "Liquid class")
-            if rel and not liquid_class_has_part(self.mirror.local(rel), ARM_LIQUID_CLASS_PART):
+            if rel and not index[rel].get("airfca"):
                 problems.append(f"Liquid class '{lc}' has no {ARM_LIQUID_CLASS_PART} part (the arm of this instrument)")
         for lc in refs.get("auxiliary_liquid_classes", []):
-            rel = self.mirror.find(lc, ".xlqc")
+            rel = find(lc, ".xlqc")
             if rel:
                 used[rel] = lc
         for tip in refs.get("tips", []):
@@ -410,52 +420,54 @@ class Preflight:
         for arm in refs.get("arms", []):
             name, ext = arm_files[arm]
             need(name, ext, f"Arm setting for {arm}")
-        method_rel = self.mirror.find("OFML_ApiHost", ".xmth")
+        method_rel = find("OFML_ApiHost", ".xmth")
         if method_rel:
             used[method_rel] = "OFML_ApiHost"
 
-        # compare with the accepted baseline
-        base = self._baseline()
         changes = {}
+        first_seen = False
         for rel, name in sorted(used.items()):
-            entry = self.mirror.index[rel]
+            entry = index[rel]
             info = {"name": name, "file": rel, "sha256": entry["sha256"], "size": entry["size"]}
             if rel.lower().endswith(".xcmp") and name in refs.get("tips", []):
-                info["values"] = _tip_values(self.mirror.local(rel))
+                info["values"] = tip_values(self.pc.read(rel))
             manifest["definitions"].append(info)
             if rel not in base:
                 base[rel] = entry["sha256"]
+                first_seen = True
                 manifest["first_seen"].append(f"{name} ({rel})")
             elif base[rel] != entry["sha256"]:
                 changes[rel] = {"name": name, "accepted": base[rel], "now": entry["sha256"]}
-            record.copy_definition(self.mirror.local(rel), rel)
+        record.definitions = sorted(used)
         manifest["problems"] = problems
         manifest["changed_since_accepted"] = changes
         record.write_manifest(manifest)
-        self.last_record = str(folder)
+        where = self.location(remote_rel)
         if problems:
             record.finish({"status": "refused", "reason": problems})
-            raise DefinitionCheckFailed("Refused before sending: " + "; ".join(problems) + f" (record: {folder})")
+            raise DefinitionCheckFailed("Refused before sending: " + "; ".join(problems) + f" (record: {where})")
         if changes:
             self.pending = changes
             record.finish({"status": "refused", "reason": "definitions changed", "changes": changes})
             names = ", ".join(f"{c['name']} ({r})" for r, c in changes.items())
             raise DefinitionCheckFailed(
                 f"Refused before sending: these definitions changed since they were last accepted: {names}. "
-                f"Check them, then call AcceptDefinitionChanges and send again (record: {folder})")
-        if manifest["first_seen"]:
-            self.dir.mkdir(parents=True, exist_ok=True)
-            self.baseline_path.write_text(json.dumps(base, ensure_ascii=False, indent=1))
+                f"Check them, then call AcceptDefinitionChanges and send again (record: {where})")
+        if first_seen and not self.dry_run:
+            self.pc.write_baseline(base)
         return record
 
 
 class RunRecord:
-    """One folder per operation: the XML sent, the definitions used, and the result."""
+    """One record per operation, built in a temporary folder and moved to the Fluent PC when it finishes."""
 
-    def __init__(self, folder: pathlib.Path, on_finish=None):
-        self.folder = folder
-        self.on_finish = on_finish
-        folder.mkdir(parents=True, exist_ok=True)
+    def __init__(self, preflight: Preflight, remote_rel: str):
+        self.preflight = preflight
+        self.remote_rel = remote_rel
+        self._tmp = pathlib.Path(tempfile.mkdtemp(prefix="ofml-record-"))
+        self.folder = self._tmp / remote_rel.rsplit("\\", 1)[-1]
+        self.folder.mkdir()
+        self.definitions: list[str] = []
 
     def write_steps(self, steps: list[tuple[str, str]]) -> None:
         d = self.folder / "steps"
@@ -464,11 +476,6 @@ class RunRecord:
             safe = re.sub(r"[^A-Za-z0-9._-]+", "_", label)[:60]
             (d / f"{i:02d}_{safe}.xml").write_text(xml, encoding="utf-8")
 
-    def copy_definition(self, src: pathlib.Path, rel: str) -> None:
-        dest = self.folder / "definitions" / rel.replace("\\", "/")
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
-
     def write_manifest(self, manifest: dict) -> None:
         (self.folder / "manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=1, default=list), encoding="utf-8")
@@ -476,5 +483,10 @@ class RunRecord:
     def finish(self, result: dict) -> None:
         result = {"finished": datetime.datetime.now().isoformat(timespec="seconds"), **result}
         (self.folder / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
-        if self.on_finish:
-            self.on_finish(self.folder)
+        try:
+            self.preflight.store(self.folder, self.remote_rel, self.definitions)
+        finally:
+            self.discard()
+
+    def discard(self) -> None:
+        shutil.rmtree(self._tmp, ignore_errors=True)

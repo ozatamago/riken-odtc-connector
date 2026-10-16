@@ -33,7 +33,7 @@
     "dry_run": true,
     "dry_run_seconds": 0.0,
     "ssh_target": "Tecan@10.5.1.156",
-    "sensor_script": "C:\\Users\\Tecan\\OFML_screen\\odtc_last_sensor_values.ps1",
+    "sensor_script": "C:\\Users\\Tecan\\OFML\\tools\\odtc_last_sensor_values.ps1",
     "channel_timeout_s": 300.0,
     "finish_timeout_s": 180.0,
     "api_channel": "ofml"

@@ -1,5 +1,5 @@
 # Find the result of the ODTC's ReadActualTemperature (the SensorValues in the ResponseEvent) in the FluentControl log and print it.
-# Read-only: does nothing to FluentControl or the device. Location: C:\Users\Tecan\OFML_screen\odtc_last_sensor_values.ps1
+# Read-only: does nothing to FluentControl or the device. Location: C:\Users\Tecan\OFML\tools\odtc_last_sensor_values.ps1
 # If not found in the current log (*.ulf), also searches the previous log compressed at rollover (*.zlf, a zip file).
 param([string]$Since = "")
 $dir = 'C:\ProgramData\Tecan\LoggingServer\LogFiles'

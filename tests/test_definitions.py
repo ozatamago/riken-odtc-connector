@@ -49,8 +49,52 @@ def placed(label: str) -> str:
             f"<a:Value>{label}</a:Value></a:KeyValueOfstringstring></LabwareName></ConnectedComponent>")
 
 
-def make_database(home: pathlib.Path) -> pathlib.Path:
-    files = {
+class FakePc:
+    """Stands in for the Fluent PC: the definition files, the baseline and the stored records."""
+
+    def __init__(self, files: dict[str, str], records: pathlib.Path):
+        self.files = {rel: text.encode() for rel, text in files.items()}
+        self.baseline: dict[str, str] = {}
+        self.records = records
+
+    def index(self):
+        import hashlib
+
+        out = {}
+        for rel, data in self.files.items():
+            text = data.decode()
+            loc = text.split("<LocationGroupName>")[1].split("<")[0] if "<LocationGroupName>" in text else ""
+            out[rel] = {"path": rel, "size": len(data), "ticks": "0", "sha256": hashlib.sha256(data).hexdigest(),
+                        "name": text.split("<ObjectName>")[1].split("<")[0], "location": loc,
+                        "airfca": "<PipettingDeviceType>AirFca</PipettingDeviceType>" in text}
+        return out
+
+    def read(self, rel):
+        return self.files[rel]
+
+    def read_baseline(self):
+        return dict(self.baseline)
+
+    def write_baseline(self, baseline):
+        self.baseline = dict(baseline)
+
+    def store_record(self, local, remote_rel, definitions):
+        import shutil
+
+        dest = self.records / remote_rel.replace("\\", "/")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if local.is_dir():
+            shutil.copytree(local, dest, dirs_exist_ok=True)
+            for rel in definitions:
+                d = dest / "definitions" / rel.replace("\\", "/")
+                d.parent.mkdir(parents=True, exist_ok=True)
+                d.write_bytes(self.files[rel])
+        else:
+            shutil.copy2(local, dest)
+
+
+def database() -> dict[str, str]:
+    return {
         r"SystemSpecific\LiquidClasses\lc1.xlqc": vx("Water Free Single", "<PipettingDeviceType>AirFca</PipettingDeviceType>"),
         r"SystemSpecific\LiquidClasses\lc2.xlqc": vx("Standard Wash", "<PipettingDeviceType>Fca</PipettingDeviceType>"),
         r"SystemSpecific\Worktable\Components\tip200.xcmp": vx("FCA, 200ul SBS", "<Key>DiTiTypeGroup</Key><Value>FCA DiTi 200µl</Value>"),
@@ -64,18 +108,6 @@ def make_database(home: pathlib.Path) -> pathlib.Path:
             f'<Arrangement><Sites>{site("s-nest", placed("Plate[001]"))}{site("s-nest")}</Sites></Arrangement>'
             "</Arrangements></Frame></Workspace>")),
     }
-    root = home / ".riken_fluent780" / "database"
-    index = {}
-    import hashlib
-
-    for rel, text in files.items():
-        p = root / "files" / rel.replace("\\", "/")
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(text, encoding="utf-8")
-        index[rel] = {"size": len(text), "ticks": "0", "sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
-                      "name": text.split("<ObjectName>")[1].split("<")[0]}
-    (root / "index.json").write_text(json.dumps(index))
-    return root
 
 
 def rga_xml(location: str, site_no: int, labware: str = "Plate[001]") -> str:
@@ -94,19 +126,37 @@ def aspirate_xml(liquid_class: str) -> str:
 
 
 @pytest.fixture
-def preflight(tmp_path):
-    make_database(tmp_path)
-    return Preflight(DefinitionsConfig(workspace="WT_TEST"), dry_run=True)
+def pc(tmp_path):
+    return FakePc(database(), tmp_path / "fluent_pc_records")
 
 
-def test_ok_command_is_recorded_with_its_definitions(preflight):
+@pytest.fixture
+def preflight(pc):
+    return Preflight(DefinitionsConfig(workspace="WT_TEST"), dry_run=False, pc=pc)
+
+
+def test_ok_command_is_recorded_on_the_fluent_pc_only(preflight, pc, tmp_path):
     record = preflight.begin([("RGA move", rga_xml("Nest7mm_Pos", 2)), ("Aspirate", aspirate_xml("Water Free Single"))], "test")
-    manifest = json.loads((record.folder / "manifest.json").read_text())
+    record.finish({"status": "ok"})
+    [stored] = list((pc.records / "runs").iterdir())
+    manifest = json.loads((stored / "manifest.json").read_text())
     names = {d["name"] for d in manifest["definitions"]}
     assert {"WT_TEST", "Water Free Single", "RGA 1", "Fca"} <= names
-    assert manifest["problems"] == [] and manifest["first_seen"]
-    assert (record.folder / "steps" / "01_RGA_move.xml").exists()
-    assert list((record.folder / "definitions").rglob("*.xlqc"))
+    assert manifest["problems"] == [] and manifest["first_seen"] and pc.baseline
+    assert (stored / "steps" / "01_RGA_move.xml").exists() and (stored / "result.json").exists()
+    assert list((stored / "definitions").rglob("*.xlqc"))
+    assert not record._tmp.exists() and not (tmp_path / ".riken_fluent780").exists()  # nothing left locally
+
+
+def test_failed_copy_waits_locally_and_is_sent_later(preflight, pc, tmp_path):
+    real = pc.store_record
+    pc.store_record = lambda *a: (_ for _ in ()).throw(OSError("network down"))
+    preflight.begin([("x", rga_xml("Regrip_Pos", 1))], "first").finish({"status": "ok"})
+    assert list((tmp_path / ".riken_fluent780" / "pending").rglob("*.pending.json"))
+    pc.store_record = real
+    preflight.begin([("x", rga_xml("Regrip_Pos", 1))], "second").finish({"status": "ok"})
+    assert len(list((pc.records / "runs").iterdir())) == 2
+    assert not list((tmp_path / ".riken_fluent780" / "pending").rglob("*.pending.json"))
 
 
 @pytest.mark.parametrize(("steps", "message"), [
@@ -120,11 +170,11 @@ def test_missing_or_unfit_definitions_refuse(preflight, steps, message):
         preflight.begin(steps, "test")
 
 
-def test_changed_definition_refuses_until_accepted(preflight, tmp_path):
+def test_changed_definition_refuses_until_accepted(preflight, pc):
     steps = [("Aspirate", aspirate_xml("Water Free Single"))]
     preflight.begin(steps, "first")  # accepted on first sight
     rel = r"SystemSpecific\LiquidClasses\lc1.xlqc"
-    preflight.mirror.index[rel]["sha256"] = "changed"
+    pc.files[rel] += b"<!-- edited -->"
     with pytest.raises(DefinitionCheckFailed, match="changed since they were last accepted: Water Free Single"):
         preflight.begin(steps, "second")
     assert preflight.accept_pending_changes() == [f"Water Free Single ({rel})"]
@@ -138,7 +188,7 @@ def test_labware_not_on_the_template_is_a_warning(preflight):
 
 
 def test_open_run_is_shared_and_recorded_in_one_folder(tmp_path):
-    backend = FluentOdtcBackend(FluentBackendConfig())  # dry run; no mirror -> names recorded only
+    backend = FluentOdtcBackend(FluentBackendConfig())  # dry run; the Fluent PC is offline -> names recorded only
 
     async def scenario():
         folder = pathlib.Path(await backend.start_run())
@@ -149,6 +199,7 @@ def test_open_run_is_shared_and_recorded_in_one_folder(tmp_path):
         await backend.run_macro("SiLA-ODTC_CloseDoor")
         assert await backend.end_run() == 2
         assert not backend.run_open
+        assert folder.is_relative_to(tmp_path / ".riken_fluent780" / "dry-run")
         records = sorted(p.name for p in folder.iterdir() if p.is_dir())
         assert len(records) == 2 and "OpenDoor" in records[0]
         assert json.loads((folder / "session.json").read_text())["commands"] == 2
@@ -156,3 +207,11 @@ def test_open_run_is_shared_and_recorded_in_one_folder(tmp_path):
             await backend.end_run()
 
     asyncio.run(scenario())
+
+
+def test_dry_run_records_are_removed_after_a_real_operation(tmp_path):
+    dry = Preflight(DefinitionsConfig(), dry_run=True)
+    dry.begin([("x", rga_xml("Regrip_Pos", 1))], "rehearsal").finish({"status": "ok"})
+    assert (tmp_path / ".riken_fluent780" / "dry-run").exists()
+    Preflight(DefinitionsConfig(), dry_run=False).forget_dry_runs()
+    assert not (tmp_path / ".riken_fluent780" / "dry-run").exists()

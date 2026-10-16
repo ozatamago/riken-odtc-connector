@@ -4,7 +4,7 @@ Moves neither the arm nor any device. Sends each channel a WaitStatement that on
 and measures whether two sent at once finish in N seconds (parallel) or take 2N seconds (sequential).
 
 Run on the Fluent PC desktop (Session 1) with the Python from the UniteLabs connector's venv
-(which has comtypes). The result is written to C:\\Users\\Tecan\\OFML_screen\\parallel_test_result.json.
+(which has comtypes). The result is written to C:\\Users\\Tecan\\OFML\\tools\\parallel_test_result.json.
 
     python parallel_channel_test.py [wait seconds (default 30)]
 """
@@ -21,7 +21,7 @@ import comtypes.client  # noqa: E402
 
 METHOD = "OFML_ApiHost2"
 CHANNELS = ("main", "odtc", "reader")
-OUT = r"C:\Users\Tecan\OFML_screen\parallel_test_result.json"
+OUT = r"C:\Users\Tecan\OFML\tools\parallel_test_result.json"
 TYPELIB = ("{86977DF6-167E-4684-AC6B-672CBE095C9B}", 1, 0)
 COMMAND_CLSID = "{44080860-58A0-45E7-82AF-6503C27100D4}"
 IDLE = {6, 16}  # EditMode, RunModeRunFinished

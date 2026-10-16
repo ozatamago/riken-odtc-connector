@@ -103,7 +103,7 @@ Only one ODTC operation can run at a time.
 - The method list is a copy taken from the device on 2026-08-10. Methods added to the device after that do not appear.
 - `LastPreMethod` is lost when the connector restarts. It also does not know about PreMethods run from the FluentControl GUI.
 - FluentControl does not return temperature values through the API, so **they are read over SSH from the driver log on the Fluent PC**
-  (place `windows/odtc_last_sensor_values.ps1` in `C:\Users\Tecan\OFML_screen\`). The PC running the connector must be able to
+  (place `windows/odtc_last_sensor_values.ps1` in `C:\Users\Tecan\OFML\tools\`). The PC running the connector must be able to
   `ssh Tecan@10.5.1.156` with key authentication. The ODTC clock is in local time, but timestamps end in `Z`.
 - While a Method such as PCR is running, neither temperatures nor the door can be operated (FluentControl runs only one run at a time).
 - **There is no authentication or encryption.** Anyone on the lab network can open and close the door.

@@ -122,7 +122,7 @@ class FluentBackendConfig(Config):
     """Seconds to wait in a dry run while pretending to send (for checking how progress is delivered)."""
     ssh_target: str = "Tecan@10.5.1.156"
     """SSH target for reading temperatures from the FluentControl log (must allow key authentication)."""
-    sensor_script: str = r"C:\Users\Tecan\OFML_screen\odtc_last_sensor_values.ps1"
+    sensor_script: str = r"C:\Users\Tecan\OFML\tools\odtc_last_sensor_values.ps1"
     """Location of the reader script (windows/odtc_last_sensor_values.ps1) on the Fluent PC."""
     channel_timeout_s: float = 300.0
     finish_timeout_s: float = 180.0
@@ -141,7 +141,7 @@ class FluentOdtcBackend:
         """Description of the operation currently running (e.g. "ODTC: SiLA-ODTC_OpenDoor"). Empty when idle."""
         self.preflight = Preflight(config.definitions, config.dry_run)
         self._session = None
-        """Run opened by StartRun: {"folder": Path, "started": str, "commands": int}. None when no run is held open."""
+        """Run opened by StartRun: {"rel": records folder, "started": str, "commands": int}. None when none is open."""
 
     # ---- Synchronous SiLA2 client (called from a worker thread)
     def _c(self):
@@ -209,9 +209,9 @@ class FluentOdtcBackend:
         If a command fails, the remaining ones are not sent. report receives each command's label before it is sent.
         """
         what = self.current_operation or steps[0][0]
-        parent = self._session["folder"] if self._session else None
+        session = self._session["rel"] if self._session else ""
         try:
-            record = self.preflight.begin(steps, what, parent)
+            record = self.preflight.begin(steps, what, session)
         except DefinitionCheckFailed as exc:
             raise BackendError(str(exc)) from None
         if self._session:
@@ -236,6 +236,8 @@ class FluentOdtcBackend:
             record.finish({"status": "failed", "error": f"{type(exc).__name__}: {exc}"})
             raise
         record.finish({"status": "ok", "seconds": durations, "in_open_run": bool(self._session)})
+        if not self.config.dry_run:
+            self.preflight.forget_dry_runs()  # dry-run records are only kept until a real operation has run
         return durations
 
     def _open_run(self, report) -> None:
@@ -292,36 +294,41 @@ class FluentOdtcBackend:
             logger.warning("Failed while cleaning up the run: %s", exc)
 
     # ---- Holding one run open across commands (StartRun / EndRun)
-    def _start_session(self, report) -> str:
-        import datetime
+    def _write_session(self, info: dict) -> None:
         import json
         import pathlib
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            f = pathlib.Path(tmp) / "session.json"
+            f.write_text(json.dumps(info))
+            self.preflight.store(f, self._session_rel(info["started"]) + "\\session.json", [])
+
+    def _session_rel(self, started: str) -> str:
+        return f"runs\\{started}_session" + ("_dry-run" if self.config.dry_run else "")
+
+    def _start_session(self, report) -> str:
+        import datetime
 
         if self._session:
             raise BackendError(f"A run is already open (since {self._session['started']})")
         if not self.config.dry_run:
             self._open_run(report)
         started = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        folder = pathlib.Path(self.preflight.dir) / "runs" / f"{started}_session{'_dry-run' if self.config.dry_run else ''}"
-        folder.mkdir(parents=True, exist_ok=True)
-        (folder / "session.json").write_text(json.dumps({"started": started, "dry_run": self.config.dry_run}))
-        self.preflight.publish(folder / "session.json")
-        self._session = {"folder": folder, "started": started, "commands": 0}
-        return str(folder)
+        self._session = {"rel": self._session_rel(started), "started": started, "commands": 0}
+        self._write_session({"started": started, "dry_run": self.config.dry_run})
+        return self.preflight.location(self._session["rel"])
 
     def _end_session(self, report) -> int:
         import datetime
-        import json
 
         if not self._session:
             raise BackendError("No run is open")
         session, self._session = self._session, None
         if not self.config.dry_run:
             self._close_run(report)
-        info = json.loads((session["folder"] / "session.json").read_text())
-        info.update(ended=datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), commands=session["commands"])
-        (session["folder"] / "session.json").write_text(json.dumps(info))
-        self.preflight.publish(session["folder"] / "session.json")
+        self._write_session({"started": session["started"], "dry_run": self.config.dry_run,
+                             "ended": datetime.datetime.now().strftime("%Y%m%d-%H%M%S"), "commands": session["commands"]})
         return session["commands"]
 
     async def start_run(self, report=lambda _: None) -> str:
