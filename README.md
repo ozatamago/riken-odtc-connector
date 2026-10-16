@@ -138,6 +138,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File windows\start_connector.ps1
 - `windows/start_connector.ps1` writes the server output to `C:\Users\Tecan\OFML\connector_state\server_<time>.log`.
 - Only one server with the same UUID may run: stop it on the other computer first.
 - Records that cannot be stored at once wait in `fluent.definitions.local_dir` (`C:\Users\Tecan\OFML\connector_state`).
+- A server started from an SSH session ends with it. Run it as the scheduled task `OFML_Fluent780Server`
+  (`windows/register_server_task.ps1`: the logged-on user, session 1, no password stored, starts at logon):
+
+  ```powershell
+  schtasks /run /tn OFML_Fluent780Server    # start
+  schtasks /end /tn OFML_Fluent780Server    # stop (also stop the server processes if they remain)
+  ```
+
+- Port 50060 is not opened in the firewall (the server is unencrypted and anyone who reaches it can move the robot).
+  Other computers use an SSH tunnel, together with the UniteLabs App's ports:
+
+  ```bash
+  ssh -N -L '3000:[::1]:3000' -L 3004:localhost:3004 -L 50060:10.5.1.156:50060 Tecan@10.5.1.156
+  ```
+
+  Then the server is `localhost:50060` and the App `http://localhost:3000`.
+- To update: push from the development computer, then on the Fluent PC `git pull`, stop and start the task.
 
 ## Quirks of the back end (UniteLabs FluentControl connector)
 
